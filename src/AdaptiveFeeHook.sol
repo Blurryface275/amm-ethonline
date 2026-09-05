@@ -48,12 +48,32 @@ contract AdaptiveFeeHook is BaseHook {
     error PoolMustUseDynamicFee();
     /// @notice Thrown when the constructor is given non-increasing tier fees or thresholds.
     error InvalidConfig();
+    /// @notice Thrown when `setKeeper` is called after the keeper has already been bound.
+    error KeeperAlreadySet();
+    /// @notice Thrown when `setKeeper` is given the zero address or the current keeper.
+    error InvalidKeeper();
 
     event VolatilityUpdated(PoolId indexed poolId, uint256 value, uint256 timestamp);
     event FeeApplied(PoolId indexed poolId, uint24 tierFee, uint24 appliedFee, bool mevTriggered);
+    /// @notice Emitted once, when the deployer binds the real keeper (e.g. the
+    /// VolatilityFunctionsConsumer). Never emitted again — the keeper is fixed for the
+    /// lifetime of this hook after the first successful `setKeeper`.
+    event KeeperBound(address indexed oldKeeper, address indexed newKeeper);
 
     /// @notice Sole address permitted to write volatility readings onchain.
-    address public immutable KEEPER;
+    /// @dev Set to a temporary deployer address in the constructor, then bound
+    /// exactly once to the real keeper (the VolatilityFunctionsConsumer) via
+    /// `setKeeper`. After that first bind the value is frozen for the lifetime
+    /// of the contract — this is a one-time address binding, NOT a governable
+    /// parameter, so it does not reintroduce the attack surface the
+    /// immutability originally existed to close. The binding is required
+    /// because the hook and its keeper reference each other (the keeper
+    /// address seeds the hook's CREATE2 salt via HookMiner), creating a
+    /// circular deploy dependency that an immutable-on-both-sides constructor
+    /// cannot satisfy.
+    address public KEEPER;
+    /// @notice False until the first (and only) `setKeeper` call succeeds.
+    bool public keeperSet;
 
     /// @notice LP fee (in hundredths of a bip) for the low-volatility tier.
     uint24 public immutable LOW_FEE;
@@ -107,6 +127,11 @@ contract AdaptiveFeeHook is BaseHook {
         _highFee.validate();
         _mevSpikeFee.validate();
 
+        // The constructor keeper is a TEMPORARY placeholder (typically the
+        // deployer). It must be bound exactly once to the real keeper via
+        // `setKeeper` before the hook is relied on in production — see that
+        // function's doc-comment for why immutability on both sides is
+        // impossible here.
         KEEPER = _keeper;
         LOW_FEE = _lowFee;
         MEDIUM_FEE = _mediumFee;
@@ -143,6 +168,31 @@ contract AdaptiveFeeHook is BaseHook {
     function setVolatility(PoolId poolId, uint256 newVolatility) external onlyKeeper {
         volatilityOf[poolId] = VolatilityData({value: newVolatility, updatedAt: block.timestamp});
         emit VolatilityUpdated(poolId, newVolatility, block.timestamp);
+    }
+
+    /// @notice Binds the real keeper exactly once. Deploy sequence is:
+    ///   1. Deploy this hook with a temporary `keeper` (the deployer).
+    ///   2. Compute the hook's CREATE2 address via HookMiner (it depends on the
+    ///      temporary keeper address in its constructor args) and deploy the
+    ///      VolatilityFunctionsConsumer pointing at that hook address.
+    ///   3. Call `setKeeper(consumer)` ONCE from the temporary keeper. The hook
+    ///      now trusts only the consumer, and `keeperSet` latches true so this
+    ///      can never be called again — the keeper is frozen for the contract's
+    ///      lifetime, equivalent to a constructor arg.
+    /// @dev Callable by the current `KEEPER` (the temporary placeholder), not a
+    /// separate owner, precisely because the consumer does not exist yet at the
+    /// moment this must run; gating on `keeperSet` is what makes the binding
+    /// one-time and irreversible. This is a one-time address bind, not a
+    /// governable parameter, so it does not reopen the attack surface that a
+    /// mutable fee would.
+    function setKeeper(address newKeeper) external onlyKeeper {
+        if (keeperSet) revert KeeperAlreadySet();
+        if (newKeeper == address(0) || newKeeper == KEEPER) revert InvalidKeeper();
+
+        address oldKeeper = KEEPER;
+        KEEPER = newKeeper;
+        keeperSet = true;
+        emit KeeperBound(oldKeeper, newKeeper);
     }
 
     function _checkKeeper() internal view {

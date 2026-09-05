@@ -10,39 +10,56 @@ goal to core.
 
 ## Phase 0 — Setup (day 1)
 
-- [ ] `forge init`, set up repo
-- [ ] Install Uniswap v4-core + v4-periphery as dependencies
-- [ ] Confirm testnet, get testnet ETH
-- [ ] Decide: Chainlink Functions vs 0G for the bridge — pick one, don't evaluate both
-- [ ] Empty hook skeleton implementing `IHooks`, deploy to local anvil, confirm it's callable
+- [x] `forge init`, set up repo
+- [x] Install Uniswap v4-core + v4-periphery as dependencies (v4-core pinned
+      to the `v4.0.0` release tag — the version actually deployed onchain;
+      `BaseHook`/`HookMiner` vendored from `Uniswap/v4-hooks-public` rather
+      than added as a submodule, see `lib/uniswap-hooks-utils/`)
+- [ ] Confirm testnet, get testnet ETH — **unconfirmed**, subgraph.yaml and
+      the deploy script assume Sepolia as a placeholder pending team/
+      #find-a-team confirmation
+- [x] Decide: Chainlink Functions vs 0G for the bridge — went with Chainlink
+      Functions (`src/VolatilityFunctionsConsumer.sol`)
+- [x] Empty hook skeleton implementing `IHooks`, deploy to local anvil,
+      confirm it's callable — done via `script/Deploy.s.sol` (PoolManager +
+      hook + dynamic-fee pool init, all confirmed working on a local anvil node)
 
 ## Phase 1 — Core fee logic, no external data yet (day 1–2)
 
-- [ ] `beforeSwap()` with a hardcoded/mocked volatility input — skip the data source entirely for now
-- [ ] Fee tier mapping: low / medium / high thresholds
-- [ ] Unit tests at tier boundary values
-- [ ] Full swap working end-to-end on anvil with the mocked fee logic
+- [x] `beforeSwap()` with a hardcoded/mocked volatility input — skip the data source entirely for now
+- [x] Fee tier mapping: low / medium / high thresholds
+- [x] Unit tests at tier boundary values
+- [x] Full swap working end-to-end on anvil with the mocked fee logic
 
 ## Phase 2 — MEV dampening (day 2–3) — core, build this before the data source
 
-- [ ] Track price at the start of the current block (or last N blocks)
-- [ ] Compare current swap price to that baseline, flag an abnormal delta
-- [ ] Override the tier fee with a spike when the pattern is detected
-- [ ] Tests: normal delta → tier applies unaffected; abnormal delta → spike
+- [x] Track price at the start of the current block (or last N blocks)
+- [x] Compare current swap price to that baseline, flag an abnormal delta
+- [x] Override the tier fee with a spike when the pattern is detected
+- [x] Tests: normal delta → tier applies unaffected; abnormal delta → spike
       overrides the tier even when the tier alone would be low
-- [ ] This doesn't depend on Phase 4's data source — that's the point, it
+- [x] This doesn't depend on Phase 4's data source — that's the point, it
       survives regardless of which path Phase 4 ends up taking
 
 ## Phase 3 — Staleness handling (day 3–4)
 
-- [ ] Timestamp tracking alongside the volatility storage slot
-- [ ] Staleness check + fallback-to-high-tier branch
-- [ ] Tests: fresh path, stale path, exact boundary at `MAX_STALENESS`
+- [x] Timestamp tracking alongside the volatility storage slot
+- [x] Staleness check + fallback-to-high-tier branch
+- [x] Tests: fresh path, stale path, exact boundary at `MAX_STALENESS`
 
 ## Phase 4 — Real volatility data source (day 4–7) — the risky part
 
-- [ ] Primary: subgraph indexing pool price history
-- [ ] Primary: keeper script reading the subgraph, writing onchain
+- [x] Primary: subgraph indexing pool price history — scaffolded
+      (`subgraph/`: schema, PoolManager Initialize/Swap mapping, manifest).
+      **Not yet run through `graph codegen`/`graph build`** (no Node
+      toolchain in this environment) — see `subgraph/README.md` for the two
+      placeholders (network/address, hook address) that block a real deploy.
+- [x] Primary: keeper script reading the subgraph, writing onchain —
+      scaffolded as a Chainlink Functions consumer
+      (`src/VolatilityFunctionsConsumer.sol`, DON job in
+      `functions/volatility-source.js`). Consumer contract is Foundry-tested
+      against a hand-written mock router (7 passing tests); the JS itself
+      has not been run through Chainlink's local Functions simulator.
 - [ ] **Checkpoint, day 7:** is data flowing subgraph → onchain reliably?
   - If yes → continue primary path
   - If no → stop debugging the bridge, switch to fallback now

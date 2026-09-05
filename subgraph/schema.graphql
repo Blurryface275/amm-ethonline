@@ -1,0 +1,38 @@
+# Indexes raw pool price history from PoolManager. Deliberately thin: this
+# subgraph only records what happened onchain (initializations and swaps).
+# Turning that history into a volatility metric is the keeper's job
+# (functions/volatility-source.js), not this subgraph's — keeping derived
+# computation out of the indexer means changing the volatility formula never
+# requires a subgraph redeploy/resync.
+
+type Pool @entity(immutable: false) {
+  "The v4 pool id (PoolManager's Initialize/Swap event `id`)"
+  id: Bytes!
+  currency0: Bytes!
+  currency1: Bytes!
+  fee: BigInt!
+  tickSpacing: BigInt!
+  hooks: Bytes!
+  createdAtBlock: BigInt!
+  createdAtTimestamp: BigInt!
+  "sqrtPriceX96 as of the most recently indexed swap (or initialization, if no swap yet)"
+  sqrtPriceX96: BigInt!
+  tick: BigInt!
+  swapCount: BigInt!
+}
+
+type Swap @entity(immutable: true) {
+  "txHash-logIndex"
+  id: ID!
+  pool: Pool!
+  sender: Bytes!
+  amount0: BigInt!
+  amount1: BigInt!
+  sqrtPriceX96: BigInt!
+  liquidity: BigInt!
+  tick: BigInt!
+  fee: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+}

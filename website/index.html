@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Adaptive Volatility-Weighted AMM — Uniswap v4 Dynamic Fee Hook</title>
+<meta name="description" content="A Uniswap v4 hook that prices swaps by a volatility-tiered dynamic fee and spikes the fee on detected same-block MEV, indexed by a The Graph subgraph. ETH Online 2026." />
+<style>
+  :root{
+    --bg:#0b0e14; --bg2:#11161f; --card:#161c27; --card2:#1b2230;
+    --line:#263041; --txt:#e6ecf5; --mut:#9aa7bd; --acc:#6c8cff; --acc2:#41e0c0;
+    --warn:#ffb454; --bad:#ff6b81; --good:#41e0c0; --grad:linear-gradient(120deg,#6c8cff,#41e0c0);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial;background:var(--bg);color:var(--txt);line-height:1.6}
+  a{color:var(--acc);text-decoration:none}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  nav{position:sticky;top:0;z-index:30;background:rgba(11,14,20,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .brand{font-weight:800;letter-spacing:.2px}
+  .brand span{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  nav a.lnk{color:var(--mut);margin-left:18px;font-size:14px}
+  nav a.lnk:hover{color:var(--txt)}
+  .btn{display:inline-block;background:var(--grad);color:#06121a;font-weight:700;padding:11px 18px;border-radius:10px;border:0;cursor:pointer;font-size:14px}
+  .btn.ghost{background:transparent;color:var(--txt);border:1px solid var(--line)}
+  .btn.sm{padding:8px 12px;font-size:13px}
+  section{padding:64px 0}
+  .hero{position:relative;overflow:hidden}
+  .hero:before{content:"";position:absolute;inset:0;background:radial-gradient(900px 500px at 70% -10%,rgba(108,140,255,.18),transparent),radial-gradient(700px 400px at 0% 10%,rgba(65,224,192,.12),transparent);z-index:0}
+  .hero .wrap{position:relative;z-index:1}
+  .pill{display:inline-block;font-size:12px;color:var(--acc2);border:1px solid var(--line);padding:5px 10px;border-radius:999px;background:var(--card)}
+  h1{font-size:42px;line-height:1.12;margin:18px 0 10px;font-weight:850}
+  h1 .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{color:var(--mut);font-size:18px;max-width:740px}
+  .cta{margin-top:26px;display:flex;gap:12px;flex-wrap:wrap}
+  .grid{display:grid;gap:18px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:820px){.g3,.g2{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .card h3{margin:0 0 8px;font-size:17px}
+  .card p{margin:0;color:var(--mut);font-size:14.5px}
+  .k{color:var(--acc2);font-weight:700}
+  h2{font-size:28px;margin:0 0 6px}
+  .sub{color:var(--mut);margin:0 0 26px}
+  .tag{display:inline-block;font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:8px;padding:3px 8px;margin:3px 4px 0 0}
+  .arch{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px}
+  .arch svg{width:100%;height:auto;display:block}
+  /* demo */
+  .demo{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  label{display:block;font-size:12.5px;color:var(--mut);margin:10px 0 5px}
+  input,select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:10px 12px;font-size:13.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  input:focus,select:focus{outline:2px solid var(--acc);border-color:var(--acc)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:820px){.row{grid-template-columns:1fr}}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:6px}
+  .stat{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .stat .v{font-size:20px;font-weight:800}
+  .stat .l{font-size:11.5px;color:var(--mut)}
+  .out{margin-top:14px;background:#0a0d13;border:1px solid var(--line);border-radius:10px;padding:12px;font-family:ui-monospace,monospace;font-size:12.5px;color:var(--mut);white-space:pre-wrap;max-height:280px;overflow:auto}
+  .ok{color:var(--good)} .warn{color:var(--warn)} .bad{color:var(--bad)} .acc{color:var(--acc)}
+  .hidden{display:none}
+  .note{font-size:12.5px;color:var(--mut);margin-top:8px}
+  footer{border-top:1px solid var(--line);padding:34px 0;color:var(--mut);font-size:13.5px}
+  .badge{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px 9px;font-size:12px;color:var(--txt);margin:3px 4px 0 0}
+  code{background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:12.5px}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand">Adaptive<span>Vol</span> AMM</div>
+    <div>
+      <a class="lnk" href="#problem">Problem</a>
+      <a class="lnk" href="#solution">Solution</a>
+      <a class="lnk" href="#how">How it works</a>
+      <a class="lnk" href="#demo">Live demo</a>
+      <a class="btn sm" href="#demo">Launch demo</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap">
+    <span class="pill">⚡ ETH Online 2026 · Uniswap v4 hook + The Graph</span>
+    <h1>Adaptive <span class="g">Volatility-Weighted</span> AMM<br/>with a Dynamic Fee Mechanism</h1>
+    <p class="lead">A Uniswap v4 hook that prices every swap by a volatility-tiered dynamic LP fee — and spikes the fee the moment it detects a same-block MEV move. Volatility is computed off-chain from a subgraph and bridged on-chain via Chainlink Functions. Fail-safe by design: stale data never drops fees open.</p>
+    <div class="cta">
+      <a class="btn" href="#demo">Try the live demo</a>
+      <a class="btn ghost" href="#how">See the architecture</a>
+    </div>
+    <div style="margin-top:18px">
+      <span class="badge">Uniswap v4 hooks</span>
+      <span class="badge">Dynamic LP fees</span>
+      <span class="badge">MEV dampening</span>
+      <span class="badge">Chainlink Functions</span>
+      <span class="badge">The Graph subgraph</span>
+      <span class="badge">Foundry</span>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section id="problem">
+  <div class="wrap">
+    <h2>The problem</h2>
+    <p class="sub">Static AMM fees bleed value exactly when it matters most.</p>
+    <div class="grid g3">
+      <div class="card"><h3>🔁 Adverse selection in volatility</h3><p>When markets move fast, informed traders swap against LPs at stale prices. A fixed fee doesn't compensate LPs for the extra risk, so they lose money precisely when volatility spikes.</p></div>
+      <div class="card"><h3>🥪 Sandwiches &amp; LVR</h3><p>Same-block MEV (sandwich attacks, back-running) extracts value from ordinary swappers. A fee that can't react within the block leaves that value on the table.</p></div>
+      <div class="card"><h3>🧊 One-size-fits-all fees</h3><p>A calm pool and a chaotic pool pay the same fee. Calm pools over-charge and lose volume; volatile pools under-charge and subsidize toxic flow.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- SOLUTION -->
+<section id="solution">
+  <div class="wrap">
+    <h2>Our solution</h2>
+    <p class="sub">A hook that makes the fee a function of risk — and reacts inside the block.</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3>① Volatility-tiered dynamic fee</h3>
+        <p>Each pool's recent realized volatility maps to a fee tier:
+          <span class="k">low</span> (calm) → <span class="k">medium</span> → <span class="k">high</span> (volatile).
+          The hook returns the tier fee from <code>beforeSwap</code> using Uniswap v4's dynamic-fee flag. LPs get paid for risk; calm pools stay competitive.</p>
+      </div>
+      <div class="card">
+        <h3>② Same-block MEV spike</h3>
+        <p>Independent of the tier, the hook records the block's opening price and compares every later swap against it. A move past the threshold overrides the tier with a flat <span class="k">spike fee</span> — taxing sandwich/back-run flow the moment it appears.</p>
+      </div>
+      <div class="card">
+        <h3>③ Fail-safe, not fail-open</h3><p>Missing or stale volatility never drops fees — it falls back to the <span class="k">high tier</span> and never reverts the swap. No governance surface on the fee parameters: a governable fee is itself an attack vector.</p></div>
+      <div class="card">
+        <h3>④ Off-chain compute, on-chain trust</h3><p>A subgraph records raw swap history. Chainlink Functions computes realized volatility off-chain (so the formula can change without a resync) and writes it on-chain through the hook's keeper. The hook treats the keeper as opaque.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <p class="sub">Primary path: subgraph → Chainlink Functions → hook → PoolManager. A fallback on-chain TWAP estimator exists if the bridge is unavailable.</p>
+    <div class="arch">
+<svg viewBox="0 0 1000 360" role="img" aria-label="Architecture diagram">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#6c8cff"/>
+    </marker>
+    <style>
+      .bx{fill:#161c27;stroke:#263041;stroke-width:1.5}
+      .bxh{fill:#1b2230;stroke:#41e0c0;stroke-width:1.5}
+      .t{fill:#e6ecf5;font:600 13px ui-sans-serif,system-ui}
+      .s{fill:#9aa7bd;font:11px ui-sans-serif,system-ui}
+      .ln{stroke:#6c8cff;stroke-width:1.6;fill:none}
+    </style>
+  </defs>
+
+  <!-- nodes -->
+  <rect class="bx" x="20" y="40" width="180" height="64" rx="10"/>
+  <text class="t" x="110" y="68" text-anchor="middle">Trader / LP</text>
+  <text class="s" x="110" y="86" text-anchor="middle">swap on Uniswap v4</text>
+
+  <rect class="bxh" x="250" y="40" width="200" height="64" rx="10"/>
+  <text class="t" x="350" y="64" text-anchor="middle">AdaptiveFeeHook</text>
+  <text class="s" x="350" y="82" text-anchor="middle">beforeSwap: tier + MEV spike</text>
+
+  <rect class="bx" x="510" y="40" width="180" height="64" rx="10"/>
+  <text class="t" x="600" y="68" text-anchor="middle">PoolManager</text>
+  <text class="s" x="600" y="86" text-anchor="middle">v4 singleton · Swap</text>
+
+  <rect class="bx" x="740" y="40" width="220" height="64" rx="10"/>
+  <text class="t" x="850" y="68" text-anchor="middle">The Graph subgraph</text>
+  <text class="s" x="850" y="86" text-anchor="middle">indexes Swap / Initialize</text>
+
+  <rect class="bx" x="740" y="160" width="220" height="64" rx="10"/>
+  <text class="t" x="850" y="184" text-anchor="middle">Chainlink Functions</text>
+  <text class="s" x="850" y="202" text-anchor="middle">DON runs volatility JS</text>
+
+  <rect class="bxh" x="250" y="160" width="200" height="64" rx="10"/>
+  <text class="t" x="350" y="184" text-anchor="middle">VolatilityConsumer</text>
+  <text class="s" x="350" y="202" text-anchor="middle">keeper → setVolatility</text>
+
+  <rect class="bx" x="20" y="160" width="180" height="64" rx="10"/>
+  <text class="t" x="110" y="184" text-anchor="middle">Automation / cron</text>
+  <text class="s" x="110" y="202" text-anchor="middle">requestVolatility(pool)</text>
+
+  <!-- edges -->
+  <path class="ln" d="M200,72 L248,72" marker-end="url(#ar)"/>
+  <path class="ln" d="M450,72 L508,72" marker-end="url(#ar)"/>
+  <path class="ln" d="M690,72 L738,72" marker-end="url(#ar)"/>
+  <path class="ln" d="M850,104 L850,158" marker-end="url(#ar)"/>
+  <path class="ln" d="M740,192 L452,192" marker-end="url(#ar)"/>
+  <path class="ln" d="M200,192 L248,192" marker-end="url(#ar)"/>
+  <path class="ln" d="M450,104 C450,140 350,140 350,158" marker-end="url(#ar)" stroke-dasharray="4 3"/>
+  <text class="s" x="500" y="135" text-anchor="middle">reads volatilityOf</text>
+</svg>
+    </div>
+    <p class="note">The hook is the only contract traders touch. The keeper (VolatilityConsumer) is bound exactly once at deploy and cannot be changed — a one-time address bind, not a governable parameter.</p>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section id="demo" class="demo">
+  <div class="wrap">
+    <h2>Live demo</h2>
+    <p class="sub">Connect a wallet, point the app at your deployed hook + pool, and watch the fee react. Everything runs in your browser against the live contract.</p>
+
+    <div class="grid g2">
+      <!-- config -->
+      <div class="panel">
+        <h3 style="margin-top:0">1 · Connect &amp; configure</h3>
+        <button class="btn sm" id="connect">Connect wallet</button>
+        <span id="wallet" class="note"></span>
+
+        <label>Network RPC (leave default for Sepolia)</label>
+        <input id="rpc" value="https://rpc.sepolia.org" />
+
+        <label>PoolManager address</label>
+        <input id="pm" placeholder="0x… (testnet v4 PoolManager)" />
+
+        <label>AdaptiveFeeHook address</label>
+        <input id="hook" placeholder="0x… (your deployed hook)" />
+
+        <label>Pool id (bytes32)</label>
+        <input id="poolId" placeholder="0x… (PoolManager Swap/Initialize event id)" />
+
+        <label>Subgraph endpoint (optional — for recent events)</label>
+        <input id="subgraph" placeholder="https://api.studio.thegraph.com/query/…/adaptive-fee-hook/version/latest" />
+
+        <div class="row" style="margin-top:12px">
+          <button class="btn sm" id="load">Load pool state</button>
+          <button class="btn sm ghost" id="reset">Reset</button>
+        </div>
+        <p class="note">No addresses yet? Deploy with <code>forge script script/Deploy.s.sol</code> on Sepolia, then paste the printed hook + pool id here.</p>
+      </div>
+
+      <!-- live state -->
+      <div class="panel">
+        <h3 style="margin-top:0">2 · Live pool state</h3>
+        <div class="stats">
+          <div class="stat"><div class="v" id="s-vol">—</div><div class="l">Volatility (bps)</div></div>
+          <div class="stat"><div class="v" id="s-tier">—</div><div class="l">Applied tier fee</div></div>
+          <div class="stat"><div class="v" id="s-keeper">—</div><div class="l">Keeper bound?</div></div>
+          <div class="stat"><div class="v" id="s-fresh">—</div><div class="l">Volatility fresh?</div></div>
+        </div>
+        <p class="note">Tiers: <span id="s-tiers" class="acc">load to see thresholds</span></p>
+      </div>
+    </div>
+
+    <!-- simulate -->
+    <div class="panel" style="margin-top:18px">
+      <h3 style="margin-top:0">3 · Simulate a same-block MEV move</h3>
+      <p class="note">The hook records the block's opening sqrtPrice and compares later swaps to it. This replicates that check locally against the pool's current price — it shows what fee <em>would</em> apply, without sending a transaction.</p>
+      <div class="row">
+        <div>
+          <label>Same-block price move to simulate (bps)</label>
+          <input id="movebps" type="number" value="150" />
+        </div>
+        <div style="align-self:end">
+          <button class="btn sm" id="sim">Run simulation</button>
+        </div>
+      </div>
+      <div class="out" id="simOut">Connect, load a pool, then run the simulation.</div>
+    </div>
+
+    <!-- recent events -->
+    <div class="panel" style="margin-top:18px">
+      <h3 style="margin-top:0">4 · Recent hook activity (subgraph)</h3>
+      <button class="btn sm" id="qevents">Query recent FeeApplied</button>
+      <div class="out" id="evOut">Provide a subgraph endpoint and click to load recent fee events.</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="brand" style="margin-bottom:6px">Adaptive<span>Vol</span> AMM</div>
+    <div>Built for ETH Online 2026 · Uniswap v4 dynamic-fee hook + The Graph subgraph, in Foundry.</div>
+    <div style="margin-top:10px">
+      <span class="tag">foundry</span><span class="tag">solidity 0.8.26</span><span class="tag">uniswap v4</span>
+      <span class="tag">chainlink functions</span><span class="tag">the graph</span>
+    </div>
+    <p class="note">Static single-file site — deploy as-is to GitHub Pages, Vercel, Netlify, or IPFS. No build step required.</p>
+  </div>
+</footer>
+
+<script type="module">
+import { BrowserProvider, JsonRpcProvider, Contract } from "https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.min.js";
+
+// ---- minimal hook ABI (only what the demo reads) ----
+const HOOK_ABI = [
+  "function volatilityOf(bytes32) view returns (uint256 value, uint256 updatedAt)",
+  "function KEEPER() view returns (address)",
+  "function keeperSet() view returns (bool)",
+  "function LOW_FEE() view returns (uint24)",
+  "function MEDIUM_FEE() view returns (uint24)",
+  "function HIGH_FEE() view returns (uint24)",
+  "function LOW_VOLATILITY_MAX() view returns (uint256)",
+  "function MEDIUM_VOLATILITY_MAX() view returns (uint256)",
+  "function MAX_STALENESS() view returns (uint256)",
+  "function MEV_PRICE_DELTA_THRESHOLD_BPS() view returns (uint256)",
+  "function MEV_SPIKE_FEE() view returns (uint24)",
+  "event FeeApplied(bytes32 indexed poolId, uint24 tierFee, uint24 appliedFee, bool mevTriggered)",
+  "event VolatilityUpdated(bytes32 indexed poolId, uint256 value, uint256 timestamp)"
+];
+const PM_ABI = [
+  "function getSlot0(bytes32) view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)"
+];
+
+const $ = id => document.getElementById(id);
+let provider, signer, hookC, pmC, chainId;
+
+$("connect").onclick = async () => {
+  try {
+    if (!window.ethereum) { $("wallet").innerHTML = '<span class="bad">No browser wallet found. Install MetaMask.</span>'; return; }
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+    provider = new BrowserProvider(window.ethereum);
+    signer = await provider.getSigner();
+    const addr = await signer.getAddress();
+    const net = await provider.getNetwork();
+    chainId = Number(net.chainId);
+    $("wallet").innerHTML = `<span class="ok">Connected:</span> ${addr.slice(0,6)}…${addr.slice(-4)} · chainId ${chainId}`;
+  } catch (e) { $("wallet").innerHTML = `<span class="bad">${e.message}</span>`; }
+};
+
+function rpcProvider() {
+  // reads use a JsonRpcProvider built from the RPC field; see jsonRpc() below
+}
+// Build a read provider from the RPC field (no wallet needed to read)
+function readProvider() {
+  return jsonRpc();
+}
+// Use a plain JsonRpcProvider via dynamic import to avoid wallet dependency for reads
+function jsonRpc() {
+  return new JsonRpcProvider($("rpc").value.trim());
+}
+
+$("load").onclick = async () => {
+  try {
+    const rpc = $("rpc").value.trim();
+    const jp = new JsonRpcProvider(rpc);
+    const hookAddr = $("hook").value.trim();
+    const pmAddr = $("pm").value.trim();
+    const poolId = $("poolId").value.trim();
+    if (!hookAddr.startsWith("0x") || !pmAddr.startsWith("0x") || !poolId.startsWith("0x")) {
+      throw new Error("Fill hook, PoolManager, and pool id (all 0x…).");
+    }
+    hookC = new Contract(hookAddr, HOOK_ABI, jp);
+    pmC = new Contract(pmAddr, PM_ABI, jp);
+
+    const [vol, keeper, ks, low, med, high, lvm, mvm, staleness, mevThr, mevSpike] =
+      await Promise.all([
+        hookC.volatilityOf(poolId), hookC.KEEPER(), hookC.keeperSet(),
+        hookC.LOW_FEE(), hookC.MEDIUM_FEE(), hookC.HIGH_FEE(),
+        hookC.LOW_VOLATILITY_MAX(), hookC.MEDIUM_VOLATILITY_MAX(),
+        hookC.MAX_STALENESS(), hookC.MEV_PRICE_DELTA_THRESHOLD_BPS(), hookC.MEV_SPIKE_FEE()
+      ]);
+
+    // tier resolution (mirror _tierFee)
+    const v = Number(vol.value);
+    const fresh = (Math.floor(Date.now()/1000) - Number(vol.updatedAt)) <= Number(staleness);
+    let tier;
+    if (!fresh) tier = high;
+    else if (v <= Number(lvm)) tier = low;
+    else if (v <= Number(mvm)) tier = med;
+    else tier = high;
+
+    $("s-vol").textContent = v;
+    $("s-tier").textContent = (Number(tier)/10000).toFixed(4) + "%";
+    $("s-keeper").textContent = ks ? "yes" : "no";
+    $("s-keeper").className = "v " + (ks ? "ok" : "warn");
+    $("s-fresh").textContent = fresh ? "yes" : "STALE→high";
+    $("s-fresh").className = "v " + (fresh ? "ok" : "bad");
+    $("s-tiers").textContent =
+      `low≤${lvm}=${Number(low)/10000}%  med≤${mvm}=${Number(med)/10000}%  high=${Number(high)/10000}%  ·  MEV thr=${mevThr}bps spike=${Number(mevSpike)/10000}%`;
+
+    window.__demo = { v, lvm:Number(lvm), mvm:Number(mvm), low:Number(low), med:Number(med), high:Number(high), mevThr:Number(mevThr), mevSpike:Number(mevSpike), fresh };
+    $("simOut").textContent = "Pool loaded. Adjust the move and run the simulation.";
+  } catch (e) { $("simOut").textContent = "Load error: " + e.message; }
+};
+
+$("sim").onclick = async () => {
+  try {
+    if (!window.__demo) { $("simOut").textContent = "Load a pool first."; return; }
+    const d = window.__demo;
+    // read current slot0 for the real baseline sqrtPrice
+    const slot = await pmC.getSlot0($("poolId").value.trim());
+    const baseline = Number(slot.sqrtPriceX96);
+    const moveBps = Number($("movebps").value || 0);
+    // approximate: a move of `moveBps` on price ≈ moveBps/2 on sqrtPrice ratio (matches hook comment)
+    const sqrtMoveBps = moveBps / 2;
+    const diff = baseline * (sqrtMoveBps / 10000);
+    const triggered = (diff * 10000) / baseline > d.mevThr;
+
+    const tierFee = d.fresh
+      ? (d.v <= d.lvm ? d.low : d.v <= d.mvm ? d.med : d.high)
+      : d.high;
+    const applied = (triggered && d.mevSpike > tierFee) ? d.mevSpike : tierFee;
+
+    const lines = [
+      `block baseline sqrtPriceX96 : ${baseline}`,
+      `simulated price move       : ${moveBps} bps  (~${sqrtMoveBps} bps on sqrtPrice)`,
+      `MEV threshold              : ${d.mevThr} bps`,
+      `MEV triggered?             : ${triggered ? "YES — spike overrides tier" : "no — tier applies"}`,
+      `tier fee (volatility)      : ${(tierFee/10000).toFixed(4)}%`,
+      `APPLIED FEE                : ${(applied/10000).toFixed(4)}%  ${triggered ? "← spike" : ""}`
+    ];
+    $("simOut").className = "out " + (triggered ? "warn" : "ok");
+    $("simOut").textContent = lines.join("\n");
+  } catch (e) { $("simOut").textContent = "Sim error: " + e.message; }
+};
+
+$("qevents").onclick = async () => {
+  const url = $("subgraph").value.trim();
+  if (!url.startsWith("http")) { $("evOut").textContent = "Enter a subgraph endpoint first."; return; }
+  const q = `query($p: Bytes!){feeApplieds: feeApplieds(first:10, where:{poolId:$p}, orderBy:timestamp, orderDirection:desc){id tierFee appliedFee mevTriggered timestamp} volatilityUpdateds: volatilityUpdateds(first:10, where:{poolId:$p}, orderBy:timestamp, orderDirection:desc){id value timestamp}}`;
+  try {
+    const r = await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ query:q, variables:{ p:$("poolId").value.trim() } }) });
+    const j = await r.json();
+    if (j.errors) { $("evOut").textContent = "Subgraph error: " + JSON.stringify(j.errors); return; }
+    const f = (j.data?.feeApplieds || []);
+    const v = (j.data?.volatilityUpdateds || []);
+    let out = `FeeApplied events: ${f.length}\n`;
+    f.forEach(e => out += `  • ${(Number(e.appliedFee)/10000).toFixed(4)}%  mev=${e.mevTriggered}  @${new Date(Number(e.timestamp)*1000).toISOString().slice(11,19)}\n`);
+    out += `\nVolatilityUpdated events: ${v.length}\n`;
+    v.forEach(e => out += `  • vol=${e.value}  @${new Date(Number(e.timestamp)*1000).toISOString().slice(11,19)}\n`);
+    $("evOut").textContent = out || "No events yet for this pool.";
+  } catch (e) { $("evOut").textContent = "Query error: " + e.message; }
+};
+
+$("reset").onclick = () => {
+  ["pm","hook","poolId","subgraph"].forEach(k=>$(k).value="");
+  ["s-vol","s-tier","s-keeper","s-fresh"].forEach(k=>$(k).textContent="—");
+  $("s-tiers").textContent="load to see thresholds"; window.__demo=null;
+};
+</script>
+</body>
+</html>
