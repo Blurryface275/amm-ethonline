@@ -34,6 +34,7 @@ contract AdaptiveFeeHookTest is Deployers {
 
     event VolatilityUpdated(PoolId indexed poolId, uint256 value, uint256 timestamp);
     event FeeApplied(PoolId indexed poolId, uint24 tierFee, uint24 appliedFee, bool mevTriggered);
+    event KeeperBound(address indexed oldKeeper, address indexed newKeeper);
 
     function setUp() public {
         deployFreshManagerAndRouters();
@@ -331,6 +332,6 @@ contract AdaptiveFeeHookTest is Deployers {
         // New keeper can.
         vm.prank(newKeeper);
         hook.setVolatility(poolId, 10);
-        assertEq(hook.volatilityOf(poolId).value, 10);
+        (uint256 value, ) = hook.volatilityOf(poolId); assertEq(value, 10);
     }
 }

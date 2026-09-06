@@ -117,7 +117,7 @@ contract DeployScript is Script {
         //    so this can never run again. After this, only the consumer can
         //    write volatility — the placeholder deployer key is rotated out.
         hook.setKeeper(address(consumer));
-        console2.log("Keeper bound ->", address(consumer), " (keeperSet =", hook.keeperSet(), ")");
+        console2.log("Keeper bound ->", address(consumer)); console2.log("keeperSet:", hook.keeperSet());
 
         // 4) Initialize a dynamic-fee pool so the hook is live and callable.
         PoolKey memory key = PoolKey({
