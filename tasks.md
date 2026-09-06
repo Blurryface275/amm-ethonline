@@ -76,12 +76,10 @@ goal to core.
 
 ## Phase 6 — Deploy + demo prep (day 9–11)
 
-- [ ] Deploy to testnet
-- [ ] Simple demo script or minimal frontend — show the MEV override
-      triggering on a simulated sandwich, not just the volatility tiers changing
-- [ ] Record 2–4 min demo video
-- [ ] README: problem, solution, architecture diagram, known limitations
-      (list the attack vectors from CLAUDE.md as future work — be upfront about it)
+- [x] Simple demo script or minimal frontend — show the MEV override triggering on a simulated sandwich, not just the volatility tiers changing (interactive sandbox, 4-step sandwich execution trace & demo preset loader added in `website/index.html`)
+- [x] README: problem, solution, architecture diagram, known limitations (comprehensive hackathon documentation with Mermaid architecture, gas benchmarks, math invariants, and documented attack surface trade-offs in `README.md`)
+- [ ] Deploy to testnet (deployment script scaffolded and tested in `script/Deploy.s.sol`; pending live Sepolia gas/funding)
+- [ ] Record 2–4 min demo video (ready for recording using the web sandbox or invariant test execution logs)
 
 ## Phase 7 — Submit (day 11–13, don't wait for the deadline)
 
