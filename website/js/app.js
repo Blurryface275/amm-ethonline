@@ -4,11 +4,13 @@
 
 import { state, notify } from './state.js';
 import { initSwapModule, showToast } from './swap.js';
+import { initLiquidityModule } from './liquidity.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   initWalletButton();
   initSwapModule();
+  initLiquidityModule();
 });
 
 function initNavigation() {
