@@ -5,12 +5,14 @@
 import { state, notify } from './state.js';
 import { initSwapModule, showToast } from './swap.js';
 import { initLiquidityModule } from './liquidity.js';
+import { initMevModule } from './mev.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   initWalletButton();
   initSwapModule();
   initLiquidityModule();
+  initMevModule();
 });
 
 function initNavigation() {
