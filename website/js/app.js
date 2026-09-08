@@ -7,6 +7,7 @@ import { initSwapModule, showToast } from './swap.js';
 import { initLiquidityModule } from './liquidity.js';
 import { initMevModule } from './mev.js';
 import { initOracleModule } from './oracle.js';
+import { initAnalyticsModule } from './analytics.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
@@ -15,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initLiquidityModule();
   initMevModule();
   initOracleModule();
+  initAnalyticsModule();
 });
 
 function initNavigation() {
