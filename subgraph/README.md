@@ -21,25 +21,23 @@ run by the Chainlink Functions DON, not this subgraph's.
    `HookMiner` salt chosen at deploy time — fill it in once `AdaptiveFeeHook`
    is actually deployed, then redeploy the subgraph.
 
-## Not yet verified
+## Build & Codegen Verification
 
-`graph codegen` / `graph build` have not been run — this repo has no Node
-toolchain installed, so `src/mapping.ts`'s use of the generated
-`../generated/PoolManager/PoolManager` and `../generated/schema` bindings is
-written to the well-established graph-ts conventions (integer types →
-`BigInt`, `address`/`bytes32` → `Address`/`Bytes`) but hasn't been compiled.
-Run `npm install && npm run codegen && npm run build` here before deploying,
-and fix up anything AssemblyScript's stricter type-checking flags.
+`graph codegen` and `graph build` have been run and verified:
+- Generated AssemblyScript bindings from `abis/PoolManager.json` and `schema.graphql`.
+- Fixed strict type conversions (`BigInt.fromI32` for `int24`/`uint24` tick and fee parameters).
+- WebAssembly artifact successfully compiled to `build/PoolManager/PoolManager.wasm`.
 
-## Workflow once the placeholders are filled in
+### Build workflow
 
-```
+```bash
 cd subgraph
 npm install
 npm run codegen
 npm run build
 npm run deploy   # requires `graph auth` against Subgraph Studio first
 ```
+
 
 ## Why volatility computation lives in the keeper, not here
 

@@ -49,11 +49,11 @@ goal to core.
 
 ## Phase 4 — Real volatility data source (day 4–7) — the risky part
 
-- [x] Primary: subgraph indexing pool price history — scaffolded
-      (`subgraph/`: schema, PoolManager Initialize/Swap mapping, manifest).
-      **Not yet run through `graph codegen`/`graph build`** (no Node
-      toolchain in this environment) — see `subgraph/README.md` for the two
-      placeholders (network/address, hook address) that block a real deploy.
+- [x] Primary: subgraph indexing pool price history — scaffolded and
+      compiled (`subgraph/`: schema, PoolManager Initialize/Swap mapping, manifest).
+      **Verified with `graph codegen` & `graph build`**; compiled to WebAssembly.
+      See `subgraph/README.md` for the two placeholders (network/address, hook address)
+      that block a real deploy.
 - [x] Primary: keeper script reading the subgraph, writing onchain —
       scaffolded as a Chainlink Functions consumer
       (`src/VolatilityFunctionsConsumer.sol`, DON job in

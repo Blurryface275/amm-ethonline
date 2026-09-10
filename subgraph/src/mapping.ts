@@ -20,13 +20,13 @@ export function handleInitialize(event: Initialize): void {
   const pool = new Pool(event.params.id);
   pool.currency0 = event.params.currency0;
   pool.currency1 = event.params.currency1;
-  pool.fee = event.params.fee;
-  pool.tickSpacing = event.params.tickSpacing;
+  pool.fee = BigInt.fromI32(event.params.fee);
+  pool.tickSpacing = BigInt.fromI32(event.params.tickSpacing);
   pool.hooks = event.params.hooks;
   pool.createdAtBlock = event.block.number;
   pool.createdAtTimestamp = event.block.timestamp;
   pool.sqrtPriceX96 = event.params.sqrtPriceX96;
-  pool.tick = event.params.tick;
+  pool.tick = BigInt.fromI32(event.params.tick);
   pool.swapCount = BigInt.zero();
   pool.save();
 }
@@ -46,15 +46,15 @@ export function handleSwap(event: SwapEvent): void {
   swap.amount1 = event.params.amount1;
   swap.sqrtPriceX96 = event.params.sqrtPriceX96;
   swap.liquidity = event.params.liquidity;
-  swap.tick = event.params.tick;
-  swap.fee = event.params.fee;
+  swap.tick = BigInt.fromI32(event.params.tick);
+  swap.fee = BigInt.fromI32(event.params.fee);
   swap.blockNumber = event.block.number;
   swap.timestamp = event.block.timestamp;
   swap.transactionHash = event.transaction.hash;
   swap.save();
 
   pool.sqrtPriceX96 = event.params.sqrtPriceX96;
-  pool.tick = event.params.tick;
+  pool.tick = BigInt.fromI32(event.params.tick);
   pool.swapCount = pool.swapCount.plus(BigInt.fromI32(1));
   pool.save();
 }
