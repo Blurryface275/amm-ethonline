@@ -2,26 +2,28 @@
    Adaptive DEX - Application Coordinator (Live Sepolia Web3)
    ========================================================================== */
 
-import { state, subscribe, notify, syncWithSepolia } from './state.js?v=5';
-import { initSwapModule, showToast } from './swap.js?v=5';
-import { initLiquidityModule } from './liquidity.js?v=5';
-import { initMevModule } from './mev.js?v=5';
-import { initOracleModule } from './oracle.js?v=5';
-import { initAnalyticsModule } from './analytics.js?v=5';
-import { SEPOLIA_CONFIG, getWeb3Signer, sendClaimFaucetTx } from './contracts.js?v=5';
+import { state, subscribe, notify, syncWithSepolia } from './state.js';
+import { initSwapModule, showToast } from './swap.js';
+import { initLiquidityModule } from './liquidity.js';
+import { initMevModule } from './mev.js';
+import { initOracleModule } from './oracle.js';
+import { initAnalyticsModule } from './analytics.js';
+import { SEPOLIA_CONFIG, getWeb3Signer, sendClaimFaucetTx } from './contracts.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   initNavigation();
   initWalletButton();
   initNavFaucetButton();
   initTelemetryUI();
 
-  // Initialize UI modules
   initSwapModule();
   initLiquidityModule();
   initAnalyticsModule();
   initMevModule();
   initOracleModule();
+
+  // Auto-connect if already authorized in MetaMask
+  await checkExistingConnection();
 
   // Start live Sepolia on-chain synchronization
   startLiveOnChainSync();
@@ -48,82 +50,105 @@ function initNavigation() {
   });
 }
 
+async function checkExistingConnection() {
+  if (!window.ethereum) return;
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (accounts && accounts.length > 0) {
+      state.wallet.connected = true;
+      state.wallet.address = accounts[0];
+      state.wallet.isMetaMask = true;
+      updateWalletUI();
+      await syncWithSepolia();
+      notify();
+    }
+  } catch (_) {}
+}
+
+function updateWalletUI() {
+  const walletBtn = document.getElementById('btn-wallet-connect');
+  if (!walletBtn) return;
+
+  if (state.wallet.connected && state.wallet.address) {
+    const shortAddr = `${state.wallet.address.slice(0, 6)}...${state.wallet.address.slice(-4)}`;
+    walletBtn.textContent = `${shortAddr} (${state.wallet.nativeBalance} SEP)`;
+    walletBtn.style.background = 'rgba(16, 185, 129, 0.15)';
+    walletBtn.style.border = '1px solid var(--accent-green)';
+    walletBtn.style.color = '#ffffff';
+  } else {
+    walletBtn.textContent = 'Connect Wallet';
+    walletBtn.style.background = '';
+    walletBtn.style.border = '';
+    walletBtn.style.color = '';
+  }
+}
+
 function initWalletButton() {
   const walletBtn = document.getElementById('btn-wallet-connect');
   if (!walletBtn) return;
 
   walletBtn.addEventListener('click', async () => {
-    if (window.ethereum) {
-      try {
-        walletBtn.textContent = 'Connecting...';
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    if (!window.ethereum) {
+      showToast('MetaMask not detected. Please install MetaMask to trade on Sepolia.', 'warn');
+      return;
+    }
 
-        if (accounts && accounts.length > 0) {
-          const userAddress = accounts[0];
+    try {
+      walletBtn.textContent = 'Connecting...';
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
 
-          // Request switch to Sepolia testnet
-          try {
-            await window.ethereum.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: SEPOLIA_CONFIG.chainIdHex }]
-            });
-          } catch (switchError) {
-            if (switchError.code === 4902) {
+      if (accounts && accounts.length > 0) {
+        const userAddress = accounts[0];
+        state.wallet.connected = true;
+        state.wallet.address = userAddress;
+        state.wallet.isMetaMask = true;
+
+        try {
+          const currentChain = await window.ethereum.request({ method: 'eth_chainId' });
+          if (currentChain !== SEPOLIA_CONFIG.chainIdHex) {
+            try {
               await window.ethereum.request({
-                method: 'wallet_addEthereumChain',
-                params: [{
-                  chainId: SEPOLIA_CONFIG.chainIdHex,
-                  chainName: SEPOLIA_CONFIG.networkName,
-                  nativeCurrency: { name: 'Sepolia Ether', symbol: 'SEP', decimals: 18 },
-                  rpcUrls: SEPOLIA_CONFIG.rpcUrls,
-                  blockExplorerUrls: [SEPOLIA_CONFIG.blockExplorerUrl]
-                }]
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: SEPOLIA_CONFIG.chainIdHex }]
               });
+            } catch (switchError) {
+              console.warn('Network switch warning:', switchError);
+              showToast('Please set your MetaMask network to Sepolia Testnet', 'warn');
             }
           }
+        } catch (_) {}
 
-          state.wallet.connected = true;
-          state.wallet.address = userAddress;
-          state.wallet.isMetaMask = true;
-
-          await syncWithSepolia();
-
-          const shortAddr = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
-          walletBtn.textContent = `${shortAddr} (${state.wallet.nativeBalance} SEP)`;
-          walletBtn.style.background = 'rgba(16, 185, 129, 0.15)';
-          walletBtn.style.border = '1px solid var(--accent-green)';
-          walletBtn.style.color = '#ffffff';
-
-          showToast(`MetaMask connected: ${shortAddr}`, 'success');
-          notify();
-          return;
-        }
-      } catch (err) {
-        console.warn('Wallet connection error:', err);
-        walletBtn.textContent = 'Connect Wallet';
+        await syncWithSepolia();
+        updateWalletUI();
+        showToast(`MetaMask connected: ${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`, 'success');
+        notify();
+      } else {
+        updateWalletUI();
       }
-    } else {
-      showToast('MetaMask not detected. Please install MetaMask to trade on Sepolia.', 'warn');
+    } catch (err) {
+      console.warn('Wallet connection error:', err);
+      updateWalletUI();
     }
   });
 
   if (window.ethereum) {
-    window.ethereum.on('accountsChanged', (accounts) => {
+    window.ethereum.on('accountsChanged', async (accounts) => {
       if (!accounts || accounts.length === 0) {
         state.wallet.connected = false;
         state.wallet.address = null;
-        walletBtn.textContent = 'Connect Wallet';
-        walletBtn.style.background = '';
-        walletBtn.style.border = '';
+        updateWalletUI();
       } else {
+        state.wallet.connected = true;
         state.wallet.address = accounts[0];
-        syncWithSepolia();
+        updateWalletUI();
+        await syncWithSepolia();
       }
       notify();
     });
 
-    window.ethereum.on('chainChanged', () => {
-      syncWithSepolia();
+    window.ethereum.on('chainChanged', async () => {
+      await syncWithSepolia();
+      notify();
     });
   }
 }
@@ -131,6 +156,8 @@ function initWalletButton() {
 function initNavFaucetButton() {
   const faucetBtn = document.getElementById('btn-nav-faucet');
   if (!faucetBtn) return;
+
+  let isNavClaiming = false;
 
   faucetBtn.addEventListener('click', async () => {
     if (!state.wallet.connected) {
@@ -140,8 +167,19 @@ function initNavFaucetButton() {
       return;
     }
 
+    if (isNavClaiming) return;
+
+    // Check if user already has plenty of test tokens
+    if (state.tokens.ETH.balance >= 1000 && state.tokens.USDC.balance >= 1000) {
+      showToast(`You already have ${state.tokens.ETH.balance} ETH & ${state.tokens.USDC.balance} USDC test tokens!`, 'info');
+    }
+
     try {
+      isNavClaiming = true;
+      faucetBtn.disabled = true;
+      faucetBtn.innerHTML = '<span class="spinner"></span> <span>Minting...</span>';
       showToast('Confirm test token mint in MetaMask', 'info');
+
       const signer = await getWeb3Signer();
       if (!signer) throw new Error('No Web3 wallet signer available');
 
@@ -149,11 +187,27 @@ function initNavFaucetButton() {
       showToast('Minting 1,000 ETH and 1,000 USDC on Sepolia...', 'info', tx.hash);
 
       await tx.wait(1);
+      isNavClaiming = false;
+      faucetBtn.disabled = false;
+      faucetBtn.innerHTML = '<span>🚰 Faucet</span>';
+
       showToast('Successfully minted 1,000 ETH & 1,000 USDC!', 'success', tx.hash);
       await syncWithSepolia();
+      notify();
     } catch (err) {
+      isNavClaiming = false;
+      faucetBtn.disabled = false;
+      faucetBtn.innerHTML = '<span>🚰 Faucet</span>';
+
       console.error('Faucet claim error:', err);
-      showToast(err.reason || err.message || 'Faucet mint rejected', 'error');
+      const msg = err.reason || err.shortMessage || err.message || '';
+      if (msg.includes('in-flight transaction limit') || msg.includes('delegated accounts')) {
+        showToast('Minting transaction already in-flight on Sepolia. Syncing balances...', 'info');
+        await syncWithSepolia();
+        notify();
+      } else {
+        showToast(msg || 'Faucet mint rejected', 'warn');
+      }
     }
   });
 }
@@ -181,20 +235,12 @@ function initTelemetryUI() {
       }
     }
 
-    // Update wallet button if balance changed
-    if (s.wallet.connected && s.wallet.address) {
-      const walletBtn = document.getElementById('btn-wallet-connect');
-      if (walletBtn) {
-        const shortAddr = `${s.wallet.address.slice(0, 6)}...${s.wallet.address.slice(-4)}`;
-        walletBtn.textContent = `${shortAddr} (${s.wallet.nativeBalance} SEP)`;
-      }
-    }
+    updateWalletUI();
   });
 }
 
 function startLiveOnChainSync() {
   syncWithSepolia();
-  // Poll Sepolia block and states every 12 seconds
   setInterval(() => {
     syncWithSepolia();
   }, 12000);

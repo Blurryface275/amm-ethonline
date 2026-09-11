@@ -14,7 +14,7 @@ export const state = {
   network: {
     chainId: 11155111,
     name: 'Sepolia Testnet',
-    blockNumber: 11679574,
+    blockNumber: 11680120,
     rpcLatencyMs: 38,
     syncStatus: 'connected',
     lastSyncTimestamp: Date.now()
@@ -23,7 +23,7 @@ export const state = {
   wallet: {
     connected: false,
     address: null,
-    nativeBalance: 0.0, // Sepolia ETH for gas
+    nativeBalance: 0.0,
     isMetaMask: false
   },
 
@@ -56,19 +56,18 @@ export const state = {
     reserve0: 1000.0,
     reserve1: 1000.0,
     
-    // Dynamic Fee parameters from AdaptiveFeeHook.sol
-    lowFee: 500,     // 0.05%
-    mediumFee: 3000,  // 0.30%
-    highFee: 10000,   // 1.00%
+    lowFee: 500,
+    mediumFee: 3000,
+    highFee: 10000,
     lowVolMax: 100,
     mediumVolMax: 500,
     mevThresholdBps: 100,
-    mevSpikeFee: 50000, // 5.00%
+    mevSpikeFee: 50000,
     maxStaleness: 3600,
 
     volatilityMetric: 65,
     lastVolatilityUpdate: Date.now(),
-    currentBlock: 11679574,
+    currentBlock: 11680120,
     blockStartPrice: 1.0,
     currentPrice: 1.0,
     sameBlockSwapsCount: 0,
@@ -81,7 +80,7 @@ export const state = {
   },
 
   settings: {
-    slippageBps: 50, // 0.5% default
+    slippageBps: 50,
     deadlineMinutes: 20
   },
 

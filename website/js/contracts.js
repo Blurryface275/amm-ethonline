@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Adaptive Volatility AMM - Sepolia Testnet Contracts & Live Web3 Services
+   Adaptive Volatility AMM - Sepolia Testnet Contracts & Web3 Services
    ========================================================================== */
 
 export const SEPOLIA_CONFIG = {
@@ -19,13 +19,13 @@ export const SEPOLIA_CONFIG = {
     poolManager: '0xE03A1074c86CFeDd5C142C4F04F1a1536e203543',
     adaptiveFeeHook: '0xab4c103d0b4783d736e12ea01a98945f08122080',
     volatilityConsumer: '0xbB833c9853587f5C562B407D2D95B0f0509AB733',
-    token0: '0xc8973F90161307791ce6e18210E25cB00e5079a0', // 18-dec ETH
-    token1: '0xCb5C55727ABc3067BC7E26b66ad0f5140Af0e64a', // 18-dec USDC
+    token0: '0xc8973F90161307791ce6e18210E25cB00e5079a0',
+    token1: '0xCb5C55727ABc3067BC7E26b66ad0f5140Af0e64a',
     poolId: '0xfa002164aa10ade9439fd684b53822f04455c76dd80261f3c031766b00a44ccf',
     poolSwapTest: '0x9B6b46e2c869aa39918Db7f52f5557FE577B6eEe',
     modifyLiquidityRouter: '0x0C478023803a644c94c4CE1C1e7b9A087e411B0A',
     tickSpacing: 60,
-    dynamicFeeFlag: 8388608 // 0x800000
+    dynamicFeeFlag: 8388608
   }
 };
 
@@ -67,9 +67,8 @@ export const POOL_MODIFY_LIQUIDITY_ABI = [
   'function modifyLiquidity((address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) key, (int24 tickLower, int24 tickUpper, int256 liquidityDelta, bytes32 salt) params, bytes hookData) external payable returns (int256 delta)'
 ];
 
-// Min/Max SqrtPrice constants for Uniswap v4 swaps
-export const MIN_SQRT_PRICE_LIMIT = 4295128740n; // MIN_SQRT_PRICE + 1
-export const MAX_SQRT_PRICE_LIMIT = 1461446703485210103287273052203988822378723970341n; // MAX_SQRT_PRICE - 1
+export const MIN_SQRT_PRICE_LIMIT = 4295128740n;
+export const MAX_SQRT_PRICE_LIMIT = 1461446703485210103287273052203988822378723970341n;
 
 let cachedProvider = null;
 let activeRpcIndex = 0;
@@ -100,7 +99,7 @@ export async function getWeb3Signer() {
 
 export async function fetchLiveBlockInfo() {
   const provider = getRpcProvider();
-  if (!provider) return { blockNumber: 11679574, latencyMs: 0 };
+  if (!provider) return { blockNumber: 11680100, latencyMs: 0 };
 
   const start = performance.now();
   try {
@@ -109,7 +108,7 @@ export async function fetchLiveBlockInfo() {
     return { blockNumber, latencyMs };
   } catch (err) {
     rotateRpcProvider();
-    return { blockNumber: 11679574, latencyMs: 999 };
+    return { blockNumber: 11680100, latencyMs: 999 };
   }
 }
 
@@ -152,7 +151,7 @@ export async function fetchLivePoolSlot0() {
       slot0Raw
     };
   } catch (err) {
-    console.warn('Failed to read live slot0 from Sepolia PoolManager:', err);
+    console.warn('Failed to read live slot0:', err);
     return null;
   }
 }
@@ -200,12 +199,9 @@ export async function fetchLiveHookData() {
       hookContract.lastPriceX96(poolId).catch(() => 0n)
     ]);
 
-    const volValue = Number(volResult[0]);
-    const volUpdatedAt = Number(volResult[1]) * 1000;
-
     return {
-      volatilityMetric: volValue,
-      volatilityUpdatedAt: volUpdatedAt,
+      volatilityMetric: Number(volResult[0]),
+      volatilityUpdatedAt: Number(volResult[1]) * 1000,
       keeper: keeperAddress,
       keeperSet,
       lowFee: Number(lowFee),
@@ -220,52 +216,84 @@ export async function fetchLiveHookData() {
       lastPriceX96: lastPrice.toString()
     };
   } catch (err) {
-    console.warn('Failed to read live AdaptiveFeeHook data on Sepolia:', err);
+    console.warn('Failed to read live Hook data:', err);
     return null;
   }
 }
 
 export async function fetchLiveAccountBalances(accountAddress) {
   if (!accountAddress) return null;
+
+  let ethBalance = 0;
+
+  // 1. Instant direct read via MetaMask if available
+  if (typeof window.ethereum !== 'undefined' && typeof window.ethers !== 'undefined') {
+    try {
+      const hex = await window.ethereum.request({
+        method: 'eth_getBalance',
+        params: [accountAddress, 'latest']
+      });
+      if (hex) {
+        ethBalance = parseFloat(window.ethers.formatEther(hex));
+      }
+    } catch (_) {}
+  }
+
+  // 2. RPC fallback if ethBalance not yet read
   const provider = getRpcProvider();
-  if (!provider || typeof window.ethers === 'undefined') return null;
+  if (ethBalance === 0 && provider && typeof window.ethers !== 'undefined') {
+    try {
+      const bRaw = await provider.getBalance(accountAddress);
+      ethBalance = parseFloat(window.ethers.formatEther(bRaw));
+    } catch (_) {}
+  }
+
+  // 3. Query ERC20 Mock balances (Token0 ETH, Token1 USDC)
+  let token0Balance = 0;
+  let token1Balance = 0;
 
   try {
-    const ethBalanceRaw = await provider.getBalance(accountAddress);
-    const ethBalance = parseFloat(window.ethers.formatEther(ethBalanceRaw));
+    let ercProvider = null;
+    if (typeof window.ethereum !== 'undefined' && typeof window.ethers !== 'undefined') {
+      ercProvider = new window.ethers.BrowserProvider(window.ethereum);
+    } else {
+      ercProvider = provider;
+    }
 
-    let token0Balance = 0;
-    let token1Balance = 0;
-    try {
-      const t0 = new window.ethers.Contract(SEPOLIA_CONFIG.contracts.token0, ERC20_ABI, provider);
-      const t1 = new window.ethers.Contract(SEPOLIA_CONFIG.contracts.token1, ERC20_ABI, provider);
+    if (ercProvider && typeof window.ethers !== 'undefined') {
+      const t0 = new window.ethers.Contract(SEPOLIA_CONFIG.contracts.token0, ERC20_ABI, ercProvider);
+      const t1 = new window.ethers.Contract(SEPOLIA_CONFIG.contracts.token1, ERC20_ABI, ercProvider);
       const [b0, b1] = await Promise.all([
         t0.balanceOf(accountAddress).catch(() => 0n),
         t1.balanceOf(accountAddress).catch(() => 0n)
       ]);
       token0Balance = parseFloat(window.ethers.formatEther(b0));
       token1Balance = parseFloat(window.ethers.formatEther(b1));
-    } catch (_) {}
-
-    return {
-      ethBalance: Number(ethBalance.toFixed(4)),
-      token0Balance: Number(token0Balance.toFixed(4)),
-      token1Balance: Number(token1Balance.toFixed(4))
-    };
+    }
   } catch (err) {
-    console.warn('Failed to fetch account Sepolia balances:', err);
-    return null;
+    console.warn('ERC20 balance check error:', err);
   }
+
+  return {
+    ethBalance: Number(ethBalance.toFixed(4)),
+    token0Balance: Number(token0Balance.toFixed(4)),
+    token1Balance: Number(token1Balance.toFixed(4))
+  };
 }
 
 export async function checkTokenAllowance(accountAddress, tokenAddress, spenderAddress) {
-  const provider = getRpcProvider();
-  if (!provider || !accountAddress) return 0n;
+  if (!accountAddress) return 0n;
   try {
+    let provider = null;
+    if (typeof window.ethereum !== 'undefined' && typeof window.ethers !== 'undefined') {
+      provider = new window.ethers.BrowserProvider(window.ethereum);
+    } else {
+      provider = getRpcProvider();
+    }
+    if (!provider) return 0n;
     const contract = new window.ethers.Contract(tokenAddress, ERC20_ABI, provider);
     return await contract.allowance(accountAddress, spenderAddress);
-  } catch (err) {
-    console.warn('Allowance check failed:', err);
+  } catch (_) {
     return 0n;
   }
 }
@@ -295,13 +323,13 @@ export async function sendSwapTx(signer, zeroForOne, amountInWei) {
   const sqrtPriceLimit = zeroForOne ? MIN_SQRT_PRICE_LIMIT : MAX_SQRT_PRICE_LIMIT;
   const swapParams = [
     zeroForOne,
-    -BigInt(amountInWei), // Exact input is negative
+    -BigInt(amountInWei),
     sqrtPriceLimit
   ];
 
   const testSettings = [
-    false, // takeClaims: false (settles real ERC20)
-    false  // settleUsingBurn: false (transfers from sender)
+    false,
+    false
   ];
 
   const tx = await poolSwapContract.swap(poolKey, swapParams, testSettings, '0x');
@@ -318,10 +346,28 @@ export async function sendClaimFaucetTx(signer, recipientAddress, tokenChoice = 
   } else if (tokenChoice === 'TOKEN1' || tokenChoice === 'USDC') {
     return await t1.mint(recipientAddress, amount);
   } else {
-    // Mint both: Token0 first
-    const tx0 = await t0.mint(recipientAddress, amount);
-    await tx0.wait(1);
-    const tx1 = await t1.mint(recipientAddress, amount);
-    return tx1;
+    // Check existing balances first to avoid unnecessary redundant mints
+    let b0 = 0n;
+    let b1 = 0n;
+    try {
+      [b0, b1] = await Promise.all([
+        t0.balanceOf(recipientAddress).catch(() => 0n),
+        t1.balanceOf(recipientAddress).catch(() => 0n)
+      ]);
+    } catch (_) {}
+
+    if (b0 === 0n && b1 === 0n) {
+      const tx0 = await t0.mint(recipientAddress, amount);
+      await tx0.wait(1);
+      const tx1 = await t1.mint(recipientAddress, amount);
+      return tx1;
+    } else if (b0 === 0n) {
+      return await t0.mint(recipientAddress, amount);
+    } else if (b1 === 0n) {
+      return await t1.mint(recipientAddress, amount);
+    } else {
+      // Both already minted, top up Token0
+      return await t0.mint(recipientAddress, amount);
+    }
   }
 }
