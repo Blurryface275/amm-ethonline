@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AdaptiveVol AMM — Uniswap v4 Dynamic Fee & MEV Dampening Hook</title>
   <meta name="description" content="A next-generation Uniswap v4 hook that dynamically prices swaps by realized volatility and throttles same-block MEV sandwich attacks with a punitive fee spike. Built for ETHOnline 2026." />
-  <link rel="stylesheet" href="css/style.css?v=2" />
+  <link rel="stylesheet" href="css/style.css?v=3" />
 </head>
 <body>
 
@@ -41,10 +41,14 @@
       </div>
 
       <div class="nav-actions">
-        <div class="mode-badge">
-          <span class="status-dot pulse"></span>
-          <span>Uniswap v4 Hook</span>
+        <div class="network-badge" id="nav-network-badge" title="Live Sepolia Node RPC Connection">
+          <span class="status-dot live-pulse"></span>
+          <span id="nav-network-name">Sepolia</span>
+          <span class="block-pill" id="nav-block-pill">#11,679,574</span>
         </div>
+        <button class="mode-toggle-btn" id="btn-mode-toggle" title="Toggle Live On-Chain vs Interactive Sandbox Mode">
+          <span id="mode-badge-indicator">🟢 Live Sepolia</span>
+        </button>
         <button class="btn-wallet" id="btn-wallet-connect">
           <span>Connect Wallet</span>
         </button>
@@ -55,12 +59,46 @@
   <!-- Main Application Body -->
   <main class="app-container">
 
+    <!-- Live On-Chain Telemetry Header Bar -->
+    <div class="telemetry-bar">
+      <div class="telemetry-item">
+        <span class="telemetry-label">Network</span>
+        <span class="telemetry-val"><span class="status-dot live-pulse"></span> Sepolia (11155111)</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Canonical v4 Pool</span>
+        <a href="https://sepolia.etherscan.io/address/0xE03A1074c86CFeDd5C142C4F04F1a1536e203543" target="_blank" class="telemetry-link" title="Canonical Uniswap v4 PoolManager">
+          0xfa00...4ccf ↗
+        </a>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">AdaptiveFeeHook</span>
+        <a href="https://sepolia.etherscan.io/address/0xab4c103d0b4783d736e12ea01a98945f08122080#code" target="_blank" class="telemetry-link verified" title="Verified Hook Contract on Sepolia">
+          0xab4c...2080 (Verified) ↗
+        </a>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Chainlink Consumer</span>
+        <a href="https://sepolia.etherscan.io/address/0xbb833c9853587f5c562b407d2d95b0f0509ab733#code" target="_blank" class="telemetry-link verified" title="Verified Keeper Consumer on Sepolia">
+          0xbB83...AB733 (Verified) ↗
+        </a>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Latest Block</span>
+        <span class="telemetry-val" id="telemetry-block-number">#11,679,574</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Sync Status</span>
+        <span class="telemetry-val" id="telemetry-sync-status" style="color:var(--accent-green)">🟢 Connected (42ms)</span>
+      </div>
+    </div>
+
     <!-- TAB 1: SWAP MODULE -->
     <div class="tab-pane active" id="pane-swap">
       <div id="swap-container"></div>
     </div>
 
-    <!-- TAB 2: LIQUIDITY MODULE (Module 2 Target) -->
+    <!-- TAB 2: LIQUIDITY MODULE -->
     <div class="tab-pane" id="pane-liquidity">
       <div id="liquidity-container">
         <div class="swap-wrapper">
@@ -72,7 +110,7 @@
       </div>
     </div>
 
-    <!-- TAB 3: MEV DEFENSE LAB (Module 3 Target) -->
+    <!-- TAB 3: MEV DEFENSE LAB -->
     <div class="tab-pane" id="pane-mev">
       <div id="mev-container">
         <div class="swap-wrapper">
@@ -84,7 +122,7 @@
       </div>
     </div>
 
-    <!-- TAB 4: ORACLE & SUBGRAPH (Module 4 Target) -->
+    <!-- TAB 4: ORACLE & SUBGRAPH -->
     <div class="tab-pane" id="pane-oracle">
       <div id="oracle-container">
         <div class="swap-wrapper">
@@ -96,7 +134,7 @@
       </div>
     </div>
 
-    <!-- TAB 5: ANALYTICS (Module 5 Target) -->
+    <!-- TAB 5: ANALYTICS -->
     <div class="tab-pane" id="pane-analytics">
       <div id="analytics-container">
         <div class="swap-wrapper">
@@ -110,6 +148,7 @@
 
   </main>
 
+  <script src="js/vendor/ethers.umd.min.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

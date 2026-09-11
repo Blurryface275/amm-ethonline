@@ -194,6 +194,147 @@ body {
   background: var(--primary-hover);
 }
 
+.network-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  background: rgba(16, 185, 129, 0.08);
+  color: var(--accent-green);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  transition: all 0.2s ease;
+}
+
+.block-pill {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  letter-spacing: 0.5px;
+}
+
+.mode-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--primary);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-toggle-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.live-pulse {
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: live-pulse-anim 2s infinite;
+}
+
+@keyframes live-pulse-anim {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* ==========================================================================
+   Live On-Chain Telemetry Header Bar
+   ========================================================================== */
+
+.telemetry-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  padding: 10px 18px;
+  margin-bottom: 24px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.telemetry-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.telemetry-label {
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.6px;
+}
+
+.telemetry-val {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.telemetry-link {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  transition: all 0.15s ease;
+}
+
+.telemetry-link:hover {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.telemetry-link.verified {
+  color: var(--accent-green);
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.telemetry-link.verified:hover {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: var(--accent-green);
+  color: #ffffff;
+}
+
+
 /* ==========================================================================
    Layout Containers & Grid Utilities
    ========================================================================== */

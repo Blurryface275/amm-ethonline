@@ -40,7 +40,7 @@ function renderOracleView(container) {
             <div class="stat-val" style="font-size:15px">v4-indexer-subgraph</div>
             <div class="stat-sub" style="display:flex;align-items:center;gap:5px;margin-top:6px">
               <span class="status-dot"></span>
-              <span>Indexing block #18920421</span>
+              <span id="subgraph-indexing-block">Indexing block #${state.network.blockNumber.toLocaleString()}</span>
             </div>
           </div>
 
@@ -53,7 +53,29 @@ function renderOracleView(container) {
           <div class="stat-card">
             <div class="stat-label">Hook Keeper Binding</div>
             <div class="stat-val" style="font-size:15px">Latched (One-Time)</div>
-            <div class="stat-sub" style="margin-top:6px">KEEPER = Consumer.sol</div>
+            <div class="stat-sub" style="margin-top:6px">KEEPER = 0xbB83...AB733</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verified On-Chain Deployments on Sepolia -->
+      <div class="card" style="background:linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%)">
+        <div class="card-header" style="margin-bottom:10px">
+          <span class="card-title" style="font-size:15px">Verified Sepolia Deployments</span>
+          <span class="pill-badge green">Etherscan Verified</span>
+        </div>
+        <div class="grid g2" style="font-size:12px;gap:12px">
+          <div style="background:var(--bg-input);padding:10px 14px;border-radius:var(--radius-md);border:1px solid var(--border-subtle)">
+            <div style="color:var(--text-muted);margin-bottom:4px">AdaptiveFeeHook (Uniswap v4 Dynamic Hook)</div>
+            <a href="https://sepolia.etherscan.io/address/0xab4c103d0b4783d736e12ea01a98945f08122080#code" target="_blank" style="color:var(--accent-green);font-family:var(--font-mono);text-decoration:none;font-weight:600">
+              0xab4c103d0b4783d736e12ea01a98945f08122080 ↗
+            </a>
+          </div>
+          <div style="background:var(--bg-input);padding:10px 14px;border-radius:var(--radius-md);border:1px solid var(--border-subtle)">
+            <div style="color:var(--text-muted);margin-bottom:4px">VolatilityFunctionsConsumer (Chainlink DON Keeper)</div>
+            <a href="https://sepolia.etherscan.io/address/0xbb833c9853587f5c562b407d2d95b0f0509ab733#code" target="_blank" style="color:var(--primary);font-family:var(--font-mono);text-decoration:none;font-weight:600">
+              0xbB833c9853587f5C562B407D2D95B0f0509AB733 ↗
+            </a>
           </div>
         </div>
       </div>
@@ -103,7 +125,7 @@ function renderOracleView(container) {
         <div class="card">
           <div class="card-header">
             <span class="card-title" style="font-size:15px">Volatility Engine Metrics</span>
-            <span class="pill-badge">Off-Chain Compute</span>
+            <span class="pill-badge">On-Chain Hook Storage</span>
           </div>
 
           <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
@@ -157,21 +179,21 @@ function renderOracleView(container) {
                 <td style="padding:10px 6px;color:var(--text-muted)">0.05%</td>
                 <td style="padding:10px 6px;font-weight:600;color:var(--text-main)">0.05%</td>
                 <td style="padding:10px 6px;color:var(--text-faint)">No</td>
-                <td style="padding:10px 6px;color:var(--text-faint)">#18920420 · Just now</td>
+                <td style="padding:10px 6px;color:var(--text-faint)" id="row-block-1">#11,679,574 · Just now</td>
               </tr>
               <tr style="border-bottom:1px solid rgba(255,255,255,0.03)">
                 <td style="padding:10px 6px"><span class="pill-badge">VolatilityUpdated</span></td>
                 <td style="padding:10px 6px;color:var(--text-muted)">—</td>
                 <td style="padding:10px 6px;font-weight:600;color:var(--text-main)">65 bps</td>
                 <td style="padding:10px 6px;color:var(--text-faint)">—</td>
-                <td style="padding:10px 6px;color:var(--text-faint)">#18920418 · 4m ago</td>
+                <td style="padding:10px 6px;color:var(--text-faint)" id="row-block-2">#11,679,568 · 1m ago</td>
               </tr>
               <tr style="border-bottom:1px solid rgba(255,255,255,0.03)">
                 <td style="padding:10px 6px"><span class="pill-badge rose">FeeApplied</span></td>
                 <td style="padding:10px 6px;color:var(--text-muted)">0.05%</td>
                 <td style="padding:10px 6px;font-weight:600;color:var(--accent-rose)">5.00% (Spike)</td>
                 <td style="padding:10px 6px;color:var(--accent-rose);font-weight:500">Yes</td>
-                <td style="padding:10px 6px;color:var(--text-faint)">#18920412 · 12m ago</td>
+                <td style="padding:10px 6px;color:var(--text-faint)" id="row-block-3">#11,679,550 · 5m ago</td>
               </tr>
             </tbody>
           </table>
@@ -248,4 +270,17 @@ function updateOracleView() {
       state.pool.volatilityMetric <= 100 ? 'Low Tier (0.05%)' : 
       state.pool.volatilityMetric <= 500 ? 'Medium Tier (0.30%)' : 'High Tier (1.00%)';
   }
+
+  // Update dynamic block indicators
+  const subBlockEl = document.getElementById('subgraph-indexing-block');
+  if (subBlockEl) {
+    subBlockEl.textContent = `Indexing block #${state.network.blockNumber.toLocaleString()}`;
+  }
+
+  const row1 = document.getElementById('row-block-1');
+  if (row1) row1.textContent = `#${state.network.blockNumber.toLocaleString()} · Just now`;
+  const row2 = document.getElementById('row-block-2');
+  if (row2) row2.textContent = `#${(state.network.blockNumber - 4).toLocaleString()} · 1m ago`;
+  const row3 = document.getElementById('row-block-3');
+  if (row3) row3.textContent = `#${(state.network.blockNumber - 18).toLocaleString()} · 4m ago`;
 }

@@ -178,8 +178,8 @@ function updateSwapView() {
     feeBadge.className = 'pill-badge green';
   }
 
-  document.getElementById('block-status').textContent = 
-    `#${state.pool.currentBlock} (${state.pool.sameBlockSwapsCount} in block)`;
+  const blockEl = document.getElementById('block-status');
+  if (blockEl) blockEl.textContent = `#${state.network.blockNumber.toLocaleString()} (${state.pool.sameBlockSwapsCount} in block)`;
 }
 
 function updateCalculations() {

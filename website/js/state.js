@@ -2,11 +2,34 @@
    Adaptive Volatility AMM - Reactive State Store & AMM Math
    ========================================================================== */
 
+import {
+  SEPOLIA_CONFIG,
+  fetchLiveBlockInfo,
+  fetchLivePoolSlot0,
+  fetchLiveHookData,
+  fetchLiveAccountBalances
+} from './contracts.js';
+
 export const state = {
   wallet: {
     connected: false,
     address: null,
     chainId: 11155111, // Sepolia default
+    isMetaMask: false
+  },
+
+  network: {
+    name: 'Ethereum Sepolia Testnet',
+    chainId: 11155111,
+    isLiveConnected: true,
+    blockNumber: 11679574,
+    rpcLatencyMs: 45,
+    lastSyncTimestamp: null,
+    syncStatus: 'connecting', // 'connecting' | 'connected' | 'error'
+    poolId: SEPOLIA_CONFIG.contracts.poolId,
+    hookAddress: SEPOLIA_CONFIG.contracts.adaptiveFeeHook,
+    consumerAddress: SEPOLIA_CONFIG.contracts.volatilityConsumer,
+    poolManagerAddress: SEPOLIA_CONFIG.contracts.poolManager
   },
 
   tokens: {
@@ -15,14 +38,14 @@ export const state = {
       name: 'Ethereum',
       decimals: 18,
       balance: 10.00,
-      priceUSD: 2500.00,
+      priceUSD: 2420.00,
       icon: '🔷'
     },
     USDC: {
       symbol: 'USDC',
       name: 'USD Coin',
       decimals: 6,
-      balance: 25000.00,
+      balance: 24200.00,
       priceUSD: 1.00,
       icon: '💵'
     }
@@ -32,23 +55,27 @@ export const state = {
     token0: 'ETH',
     token1: 'USDC',
     reserve0: 1000.0, // 1,000 ETH
-    reserve1: 2500000.0, // 2,500,000 USDC ($2,500 / ETH)
+    reserve1: 2420000.0, // 2,420,000 USDC
     
-    // Fee configurations matching AdaptiveFeeHook.sol
+    // Fee configurations matching AdaptiveFeeHook.sol on Sepolia
     lowFee: 500, // 0.05%
     mediumFee: 3000, // 0.30%
     highFee: 10000, // 1.00%
+    lowVolMax: 100,
+    mediumVolMax: 500,
     mevThresholdBps: 100, // 1.00% move threshold
     mevSpikeFee: 50000, // 5.00% spike fee
     maxStaleness: 3600, // 1 hour
 
-    // Dynamic metrics
-    volatilityMetric: 65, // in bps, calm market
+    // Dynamic on-chain metrics
+    volatilityMetric: 65, // in bps
     lastVolatilityUpdate: Date.now(),
-    currentBlock: 18920420,
-    blockStartPrice: 2500.0, // Baseline for the current block
-    currentPrice: 2500.0,
+    currentBlock: 11679574,
+    blockStartPrice: 2420.0, // Baseline for the current block
+    currentPrice: 2420.0,
     sameBlockSwapsCount: 0,
+    sqrtPriceX96: '79228162514264337593543950336', // 1.0 in Q96
+    tick: 0,
     
     // Stats tracking
     totalVolumeUSD: 1245080.0,
@@ -58,7 +85,8 @@ export const state = {
 
   settings: {
     slippageBps: 50, // 0.50%
-    isSimulatedMode: true,
+    isSimulatedMode: false, // Default: LIVE ON-CHAIN SEPOLIA MODE
+    dataSource: 'Sepolia Live RPC'
   },
 
   listeners: []
@@ -98,16 +126,15 @@ export function getActiveFee(simulatedPriceMoveBps = 0) {
   // 2. Volatility tier resolution
   let tierFee = pool.highFee;
   let reason = 'High Volatility Tier';
-  if (pool.volatilityMetric <= 100) {
+  if (pool.volatilityMetric <= pool.lowVolMax) {
     tierFee = pool.lowFee;
-    reason = 'Low Volatility Tier';
-  } else if (pool.volatilityMetric <= 500) {
+    reason = 'Low Volatility Tier (Calm Market)';
+  } else if (pool.volatilityMetric <= pool.mediumVolMax) {
     tierFee = pool.mediumFee;
-    reason = 'Medium Volatility Tier';
+    reason = 'Medium Volatility Tier (Normal Market)';
   }
 
   // 3. Intra-block MEV check
-  // Compare current price against blockStartPrice
   const priceDelta = Math.abs(pool.currentPrice - pool.blockStartPrice);
   const priceDeltaBps = Math.floor((priceDelta / pool.blockStartPrice) * 10000) + simulatedPriceMoveBps;
   const isMevTriggered = priceDeltaBps > pool.mevThresholdBps;
@@ -119,7 +146,7 @@ export function getActiveFee(simulatedPriceMoveBps = 0) {
     appliedFee,
     isMevTriggered,
     priceDeltaBps,
-    reason: isMevTriggered ? 'MEV Price Move Detected (Spike Active)' : reason
+    reason: isMevTriggered ? 'MEV Price Move Detected (5% Punitive Spike)' : reason
   };
 }
 
@@ -137,19 +164,17 @@ export function calculateSwapOutput(amountIn, tokenInSymbol) {
   }
 
   const pool = state.pool;
-  const isZeroForOne = tokenInSymbol === pool.token0; // ETH -> USDC
+  const isZeroForOne = tokenInSymbol === pool.token0;
 
   const rIn = isZeroForOne ? pool.reserve0 : pool.reserve1;
   const rOut = isZeroForOne ? pool.reserve1 : pool.reserve0;
 
   const feeData = getActiveFee();
-  const feeRate = feeData.appliedFee / 1000000; // e.g. 500 -> 0.0005, 50000 -> 0.05
+  const feeRate = feeData.appliedFee / 1000000;
 
   const amountInWithFee = amountIn * (1 - feeRate);
-  // Constant product formula: (rIn + amountInWithFee) * (rOut - amountOut) = rIn * rOut
   const amountOut = (amountInWithFee * rOut) / (rIn + amountInWithFee);
 
-  // Price impact
   const currentMidPrice = isZeroForOne ? (rOut / rIn) : (rIn / rOut);
   const effectiveExecutionPrice = amountOut / amountIn;
   const priceImpact = Math.max(0, ((currentMidPrice - effectiveExecutionPrice) / currentMidPrice) * 100);
@@ -214,7 +239,67 @@ export function executeSwap(amountIn, tokenInSymbol, minAmountOut) {
 
 export function advanceBlock() {
   state.pool.currentBlock += 1;
+  state.network.blockNumber = state.pool.currentBlock;
   state.pool.blockStartPrice = state.pool.currentPrice;
   state.pool.sameBlockSwapsCount = 0;
   notify();
+}
+
+/**
+ * Perform live on-chain synchronization with Ethereum Sepolia
+ */
+export async function syncWithSepolia() {
+  try {
+    state.network.syncStatus = 'syncing';
+
+    // 1. Fetch live block number and latency
+    const blockInfo = await fetchLiveBlockInfo();
+    if (blockInfo && blockInfo.blockNumber) {
+      state.network.blockNumber = blockInfo.blockNumber;
+      state.network.rpcLatencyMs = blockInfo.latencyMs;
+      state.pool.currentBlock = blockInfo.blockNumber;
+    }
+
+    // 2. Fetch live Uniswap v4 slot0 (sqrtPriceX96 & tick)
+    const slot0 = await fetchLivePoolSlot0();
+    if (slot0) {
+      state.pool.sqrtPriceX96 = slot0.sqrtPriceX96;
+      state.pool.tick = slot0.tick;
+    }
+
+    // 3. Fetch live Hook parameters
+    const hookData = await fetchLiveHookData();
+    if (hookData) {
+      state.pool.lowFee = hookData.lowFee;
+      state.pool.mediumFee = hookData.mediumFee;
+      state.pool.highFee = hookData.highFee;
+      state.pool.lowVolMax = hookData.lowVolMax;
+      state.pool.mediumVolMax = hookData.mediumVolMax;
+      state.pool.maxStaleness = hookData.maxStaleness;
+      state.pool.mevThresholdBps = hookData.mevThresholdBps;
+      state.pool.mevSpikeFee = hookData.mevSpikeFee;
+      
+      // If on-chain volatility metric has been updated, use it; otherwise maintain active simulation metric
+      if (hookData.volatilityMetric > 0) {
+        state.pool.volatilityMetric = hookData.volatilityMetric;
+        state.pool.lastVolatilityUpdate = hookData.volatilityUpdatedAt;
+      }
+    }
+
+    // 4. If wallet connected, update real balance
+    if (state.wallet.connected && state.wallet.address && !state.wallet.address.includes('...')) {
+      const balances = await fetchLiveAccountBalances(state.wallet.address);
+      if (balances && typeof balances.ethBalance === 'number') {
+        state.tokens.ETH.balance = balances.ethBalance;
+      }
+    }
+
+    state.network.syncStatus = 'connected';
+    state.network.lastSyncTimestamp = Date.now();
+    notify();
+  } catch (err) {
+    console.warn('Sepolia on-chain sync encountered an error:', err);
+    state.network.syncStatus = 'error';
+    notify();
+  }
 }
