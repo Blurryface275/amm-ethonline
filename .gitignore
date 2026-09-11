@@ -17,3 +17,8 @@ docs/
 node_modules/
 subgraph/node_modules/
 subgraph/build/
+
+# Assets & Media
+assets/
+*.log
+
