@@ -25,22 +25,23 @@ The system employs a hybrid architecture: deep off-chain indexing via **The Grap
 
 ```mermaid
 flowchart TD
-    subgraph Execution ["Uniswap v4 Core"]
-        Trader["Trader / Arbitrageur"] -->|swap()| PM["PoolManager (Singleton)"]
-        PM <-->|beforeSwap()| Hook["AdaptiveFeeHook"]
+    subgraph Execution["Uniswap v4 Core"]
+        Trader["Trader / Arbitrageur"] -->|swap| PM["PoolManager Singleton"]
+        PM -->|beforeSwap| Hook["AdaptiveFeeHook"]
+        Hook -->|dynamic fee override| PM
     end
 
-    subgraph Defense ["MEV Dampening Layer"]
-        Hook -->|1. Snapshot| Base["Block Price Baseline (sqrtPriceX96)"]
-        Hook -->|2. Check Delta| Delta["|P_current - P_baseline| > Threshold?"]
-        Delta -->|Yes| Spike["Override: MEV_SPIKE_FEE (5.00%)"]
+    subgraph Defense["MEV Dampening Layer"]
+        Hook -->|1. Snapshot| Base["Block Price Baseline"]
+        Hook -->|2. Check Delta| Delta{"Abs Price Delta > Threshold?"}
+        Delta -->|Yes| Spike["Override Fee: 5.00% MEV Spike"]
         Delta -->|No| Tier["Apply Volatility Tier Fee"]
     end
 
-    subgraph DataPipeline ["Volatility Pipeline (Primary Path)"]
-        PM -.->|Swap & Initialize Events| Subgraph["The Graph Subgraph (Indexer)"]
-        Keeper["Chainlink Functions DON"] -->|Query historical price data| Subgraph
-        Keeper -->|setVolatility()| Hook
+    subgraph DataPipeline["Volatility Pipeline"]
+        PM -.->|Swap and Initialize Events| Subgraph["The Graph Subgraph Indexer"]
+        Keeper["Chainlink Functions DON"] -->|Query swap history| Subgraph
+        Keeper -->|setVolatility| Hook
     end
 ```
 
