@@ -20,14 +20,14 @@ contract AdaptiveFeeHookTest is Deployers {
     AdaptiveFeeHook hook;
     address keeper = makeAddr("keeper");
 
-    uint24 constant LOW_FEE = 500; // 0.05%
-    uint24 constant MEDIUM_FEE = 3_000; // 0.30%
-    uint24 constant HIGH_FEE = 10_000; // 1.00%
+    uint24 constant LOW_FEE = 500;
+    uint24 constant MEDIUM_FEE = 3_000;
+    uint24 constant HIGH_FEE = 10_000;
     uint256 constant LOW_VOL_MAX = 100;
     uint256 constant MEDIUM_VOL_MAX = 500;
     uint256 constant MAX_STALENESS = 1 hours;
-    uint256 constant MEV_THRESHOLD_BPS = 100; // 1% same-block sqrtPrice move
-    uint24 constant MEV_SPIKE_FEE = 50_000; // 5%
+    uint256 constant MEV_THRESHOLD_BPS = 100;
+    uint24 constant MEV_SPIKE_FEE = 50_000;
 
     PoolKey poolKey;
     PoolId poolId;
@@ -68,13 +68,11 @@ contract AdaptiveFeeHookTest is Deployers {
             MEV_THRESHOLD_BPS,
             MEV_SPIKE_FEE
         );
-        require(address(hook) == hookAddress, "hook address mismatch");
+        assertEq(address(hook), hookAddress);
 
         (poolKey, poolId) =
             initPool(currency0, currency1, IHooks(address(hook)), LPFeeLibrary.DYNAMIC_FEE_FLAG, SQRT_PRICE_1_1);
 
-        // Wide, deep liquidity so test swaps move price by a controlled,
-        // predictable amount instead of running the position out of range.
         modifyLiquidityRouter.modifyLiquidity(
             poolKey,
             IPoolManager.ModifyLiquidityParams({
@@ -96,17 +94,11 @@ contract AdaptiveFeeHookTest is Deployers {
         return swap(poolKey, true, -1e12, ZERO_BYTES);
     }
 
-    /* ------------------------------------------------------------------ */
-    /* Pool setup / access control                                        */
-    /* ------------------------------------------------------------------ */
-
     function test_RevertWhen_PoolInitializedWithoutDynamicFee() public {
         PoolKey memory staticFeeKey = PoolKey({
             currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 60, hooks: IHooks(address(hook))
         });
 
-        // Hooks.beforeInitialize bubbles up the hook's revert wrapped in an
-        // ERC-7751 WrappedError rather than letting it propagate directly.
         vm.expectRevert(
             abi.encodeWithSelector(
                 CustomRevert.WrappedError.selector,
@@ -134,10 +126,6 @@ contract AdaptiveFeeHookTest is Deployers {
         assertEq(value, 42);
         assertEq(updatedAt, block.timestamp);
     }
-
-    /* ------------------------------------------------------------------ */
-    /* Volatility -> fee tier mapping, including exact boundaries          */
-    /* ------------------------------------------------------------------ */
 
     function test_Tier_Low() public {
         _setVolatility(0);
@@ -181,82 +169,52 @@ contract AdaptiveFeeHookTest is Deployers {
         _tinySwap();
     }
 
-    /* ------------------------------------------------------------------ */
-    /* Staleness: fail-safe to the high tier, never a revert               */
-    /* ------------------------------------------------------------------ */
-
     function test_Stale_NeverWritten_FallsBackToHigh() public {
-        // Default VolatilityData is (0, 0). Warp forward so "never written"
-        // is indistinguishable from "written once, long ago" — both must
-        // resolve to the fail-safe tier.
         vm.warp(block.timestamp + MAX_STALENESS + 1);
-
         vm.expectEmit(true, false, false, true, address(hook));
         emit FeeApplied(poolId, HIGH_FEE, HIGH_FEE, false);
         _tinySwap();
     }
 
     function test_Stale_ExactlyAtBoundary_StillFresh() public {
-        _setVolatility(0); // low tier
+        _setVolatility(0);
         vm.warp(block.timestamp + MAX_STALENESS);
-
         vm.expectEmit(true, false, false, true, address(hook));
         emit FeeApplied(poolId, LOW_FEE, LOW_FEE, false);
         _tinySwap();
     }
 
     function test_Stale_OneSecondPastBoundary_FallsBackToHigh() public {
-        _setVolatility(0); // low tier, would otherwise stay low
+        _setVolatility(0);
         vm.warp(block.timestamp + MAX_STALENESS + 1);
-
         vm.expectEmit(true, false, false, true, address(hook));
         emit FeeApplied(poolId, HIGH_FEE, HIGH_FEE, false);
         _tinySwap();
     }
 
     function test_Stale_DoesNotRevertTheSwap() public {
-        // The swap must still execute (non-zero output), not merely avoid
-        // reverting at the hook level.
         BalanceDelta delta = _tinySwap();
         assertTrue(BalanceDelta.unwrap(delta) != 0);
     }
 
-    /* ------------------------------------------------------------------ */
-    /* MEV dampening: independent of the volatility tier                  */
-    /* ------------------------------------------------------------------ */
-
     function test_MEV_BelowThreshold_TierAppliesUnaffected() public {
-        _setVolatility(0); // low tier
+        _setVolatility(0);
 
-        // First swap this block sets the baseline; can never itself trigger.
         vm.expectEmit(true, false, false, true, address(hook));
         emit FeeApplied(poolId, LOW_FEE, LOW_FEE, false);
         _tinySwap();
 
-        // Second swap, same block, tiny size relative to the 1e24 liquidity
-        // seeded in setUp — moves price by a negligible fraction of a bp.
         vm.expectEmit(true, false, false, true, address(hook));
         emit FeeApplied(poolId, LOW_FEE, LOW_FEE, false);
         _tinySwap();
     }
 
-    // A swap's `beforeSwap` observes the pool's *pre*-swap price — its own
-    // price impact hasn't happened yet — so no swap can ever flag its own
-    // movement. Detection only fires for a swap that lands *after* an
-    // earlier same-block swap has already pushed the price away from the
-    // block-start baseline. This mirrors the real sandwich shape: the
-    // front-run leg that does the pushing is never the one that's flagged;
-    // it's whatever trades after it — the victim, or the attacker's own
-    // back-run — that pays the spike.
     function test_MEV_AboveThreshold_SpikeOverridesLowTier() public {
-        _setVolatility(0); // low tier alone would apply LOW_FEE throughout
+        _setVolatility(0);
 
-        _tinySwap(); // sets the block baseline
-        swap(poolKey, true, -4e22, ZERO_BYTES); // large same-block move; priced at the tier fee, since its own beforeSwap ran before this swap moved anything
+        _tinySwap();
+        swap(poolKey, true, -4e22, ZERO_BYTES);
 
-        // A later swap in the same block observes the cumulative move
-        // against the block-start baseline and gets the MEV spike instead
-        // of the tier — even though the tier alone says this pool is calm.
         vm.expectEmit(true, false, false, true, address(hook));
         emit FeeApplied(poolId, LOW_FEE, MEV_SPIKE_FEE, true);
         _tinySwap();
@@ -264,31 +222,24 @@ contract AdaptiveFeeHookTest is Deployers {
 
     function test_MEV_NewBlock_ResetsBaseline() public {
         _setVolatility(0);
-        _tinySwap(); // sets block N's baseline
-        swap(poolKey, true, -4e22, ZERO_BYTES); // large same-block move
+        _tinySwap();
+        swap(poolKey, true, -4e22, ZERO_BYTES);
 
-        // Confirm the move is actually flagged before rolling forward.
         vm.expectEmit(true, false, false, true, address(hook));
         emit FeeApplied(poolId, LOW_FEE, MEV_SPIKE_FEE, true);
         _tinySwap();
 
         vm.roll(block.number + 1);
 
-        // First swap of the new block re-baselines and cannot trigger,
-        // regardless of how far the previous block moved the price.
         vm.expectEmit(true, false, false, true, address(hook));
         emit FeeApplied(poolId, LOW_FEE, LOW_FEE, false);
         _tinySwap();
     }
 
-    /* ------------------------------------------------------------------ */
-    /* Keeper binding (deploy-wiring fix for the circular keeper<->hook)  */
-    /* ------------------------------------------------------------------ */
-
     function test_SetKeeper_BindsOnceAndLatches() public {
         address newKeeper = makeAddr("newKeeper");
 
-        vm.prank(keeper); // current keeper
+        vm.prank(keeper);
         vm.expectEmit(true, true, true, true, address(hook));
         emit KeeperBound(keeper, newKeeper);
         hook.setKeeper(newKeeper);
@@ -296,7 +247,6 @@ contract AdaptiveFeeHookTest is Deployers {
         assertEq(hook.KEEPER(), newKeeper);
         assertTrue(hook.keeperSet());
 
-        // A second bind must revert — the keeper is frozen for the lifetime.
         vm.prank(newKeeper);
         vm.expectRevert(AdaptiveFeeHook.KeeperAlreadySet.selector);
         hook.setKeeper(makeAddr("another"));
@@ -324,12 +274,10 @@ contract AdaptiveFeeHookTest is Deployers {
         vm.prank(keeper);
         hook.setKeeper(newKeeper);
 
-        // Old keeper can no longer write volatility.
         vm.prank(keeper);
         vm.expectRevert(AdaptiveFeeHook.NotKeeper.selector);
         hook.setVolatility(poolId, 10);
 
-        // New keeper can.
         vm.prank(newKeeper);
         hook.setVolatility(poolId, 10);
         (uint256 value,) = hook.volatilityOf(poolId);

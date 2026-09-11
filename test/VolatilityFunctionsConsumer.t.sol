@@ -11,11 +11,6 @@ import {HookMiner} from "@uniswap/hooks-utils/src/HookMiner.sol";
 import {AdaptiveFeeHook} from "../src/AdaptiveFeeHook.sol";
 import {VolatilityFunctionsConsumer} from "../src/VolatilityFunctionsConsumer.sol";
 
-/// @notice Stand-in for Chainlink's real FunctionsRouter, which only exists
-/// on testnet/mainnet deployments (no local simulator ships as a Foundry
-/// dependency). Implements just the one function FunctionsClient actually
-/// calls; the test drives `handleOracleFulfillment` directly, pranked as
-/// this contract, to simulate the DON's callback.
 contract MockFunctionsRouter {
     function sendRequest(uint64, bytes calldata, uint16, uint32, bytes32) external view returns (bytes32) {
         return keccak256(abi.encode(block.timestamp, msg.sender, gasleft()));
@@ -37,12 +32,6 @@ contract VolatilityFunctionsConsumerTest is Deployers {
         deployMintAndApprove2Currencies();
         router = new MockFunctionsRouter();
 
-        // AdaptiveFeeHook.KEEPER is immutable, but the consumer's
-        // constructor needs the hook's address, and the hook's constructor
-        // needs the consumer's (its keeper's) address — so the consumer's
-        // CREATE address is predicted ahead of time and the hook is
-        // deployed with that prediction as its keeper, exactly as a real
-        // deploy script must.
         uint256 nonceBeforeHook = vm.getNonce(address(this));
         address predictedConsumer = vm.computeCreateAddress(address(this), nonceBeforeHook + 1);
 
@@ -65,12 +54,12 @@ contract VolatilityFunctionsConsumerTest is Deployers {
         hook = new AdaptiveFeeHook{salt: salt}(
             manager, predictedConsumer, 500, 3_000, 10_000, 100, 500, 1 hours, 100, 50_000
         );
-        require(address(hook) == hookAddress, "hook address mismatch");
+        assertEq(address(hook), hookAddress);
 
         consumer = new VolatilityFunctionsConsumer(
             address(router), address(hook), bytes32("fun-don-1"), 1, 300_000, "return Functions.encodeUint256(0);"
         );
-        require(address(consumer) == predictedConsumer, "consumer address mismatch");
+        assertEq(address(consumer), predictedConsumer);
 
         (poolKey, poolId) =
             initPool(currency0, currency1, IHooks(address(hook)), LPFeeLibrary.DYNAMIC_FEE_FLAG, SQRT_PRICE_1_1);
@@ -108,7 +97,7 @@ contract VolatilityFunctionsConsumerTest is Deployers {
     function test_Fulfill_RevertsForNonRouterCaller() public {
         bytes32 requestId = consumer.requestVolatility(poolId);
 
-        vm.expectRevert(); // FunctionsClient.OnlyRouterCanFulfill
+        vm.expectRevert();
         consumer.handleOracleFulfillment(requestId, abi.encode(uint256(1)), "");
     }
 

@@ -22,14 +22,14 @@ contract AdaptiveFeeHookInvariantsTest is Deployers {
     AdaptiveFeeHook hook;
     address keeper = makeAddr("keeper");
 
-    uint24 constant LOW_FEE = 500; // 0.05%
-    uint24 constant MEDIUM_FEE = 3_000; // 0.30%
-    uint24 constant HIGH_FEE = 10_000; // 1.00%
+    uint24 constant LOW_FEE = 500;
+    uint24 constant MEDIUM_FEE = 3_000;
+    uint24 constant HIGH_FEE = 10_000;
     uint256 constant LOW_VOL_MAX = 100;
     uint256 constant MEDIUM_VOL_MAX = 500;
     uint256 constant MAX_STALENESS = 1 hours;
-    uint256 constant MEV_THRESHOLD_BPS = 100; // 1% sqrtPrice move
-    uint24 constant MEV_SPIKE_FEE = 50_000; // 5%
+    uint256 constant MEV_THRESHOLD_BPS = 100;
+    uint24 constant MEV_SPIKE_FEE = 50_000;
 
     PoolKey hookPoolKey;
     PoolId hookPoolId;
@@ -69,7 +69,7 @@ contract AdaptiveFeeHookInvariantsTest is Deployers {
             MEV_THRESHOLD_BPS,
             MEV_SPIKE_FEE
         );
-        require(address(hook) == hookAddress, "hook address mismatch");
+        assertEq(address(hook), hookAddress);
 
         (hookPoolKey, hookPoolId) =
             initPool(currency0, currency1, IHooks(address(hook)), LPFeeLibrary.DYNAMIC_FEE_FLAG, SQRT_PRICE_1_1);

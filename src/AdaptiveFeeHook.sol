@@ -11,95 +11,44 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 
 /// @title AdaptiveFeeHook
-/// @notice Uniswap v4 hook that prices swaps on a volatility-tiered dynamic
-/// fee, and independently overrides that fee with a spike whenever it
-/// detects an abnormal same-block price move (the sandwich/LVR pattern).
-/// @dev All fee tiers, the staleness bound, and the MEV threshold are set
-/// once at deployment and are immutable. There is no governance surface on
-/// this contract: a governable fee parameter is itself an attack vector, and
-/// this hackathon MVP does not attempt to solve that problem. Rotating any
-/// of these values means deploying a new hook and migrating pools to it.
+/// @notice Uniswap v4 hook implementing volatility-tiered dynamic fees with intra-block MEV dampening.
 contract AdaptiveFeeHook is BaseHook {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
     using LPFeeLibrary for uint24;
 
-    /// @notice Per-pool volatility reading and the timestamp it was written.
-    /// @dev Populated by `KEEPER` from the offchain pipeline (subgraph +
-    /// bridge in the primary architecture, onchain TWAP delta in the
-    /// fallback). The hook only ever reads this data — it never estimates
-    /// volatility itself.
     struct VolatilityData {
         uint256 value;
         uint256 updatedAt;
     }
 
-    /// @notice Per-pool snapshot of price at the first swap this hook saw in
-    /// the current block, used as the MEV baseline for every later swap in
-    /// the same block.
     struct BlockPriceSnapshot {
         uint256 blockNumber;
         uint160 sqrtPriceX96;
     }
 
-    /// @notice Thrown when a caller other than `KEEPER` tries to write volatility data.
     error NotKeeper();
-    /// @notice Thrown when a pool is initialized without the dynamic-fee flag set.
     error PoolMustUseDynamicFee();
-    /// @notice Thrown when the constructor is given non-increasing tier fees or thresholds.
     error InvalidConfig();
-    /// @notice Thrown when `setKeeper` is called after the keeper has already been bound.
     error KeeperAlreadySet();
-    /// @notice Thrown when `setKeeper` is given the zero address or the current keeper.
     error InvalidKeeper();
 
     event VolatilityUpdated(PoolId indexed poolId, uint256 value, uint256 timestamp);
     event FeeApplied(PoolId indexed poolId, uint24 tierFee, uint24 appliedFee, bool mevTriggered);
-    /// @notice Emitted once, when the deployer binds the real keeper (e.g. the
-    /// VolatilityFunctionsConsumer). Never emitted again — the keeper is fixed for the
-    /// lifetime of this hook after the first successful `setKeeper`.
     event KeeperBound(address indexed oldKeeper, address indexed newKeeper);
 
-    /// @notice Sole address permitted to write volatility readings onchain.
-    /// @dev Set to a temporary deployer address in the constructor, then bound
-    /// exactly once to the real keeper (the VolatilityFunctionsConsumer) via
-    /// `setKeeper`. After that first bind the value is frozen for the lifetime
-    /// of the contract — this is a one-time address binding, NOT a governable
-    /// parameter, so it does not reintroduce the attack surface the
-    /// immutability originally existed to close. The binding is required
-    /// because the hook and its keeper reference each other (the keeper
-    /// address seeds the hook's CREATE2 salt via HookMiner), creating a
-    /// circular deploy dependency that an immutable-on-both-sides constructor
-    /// cannot satisfy.
     address public KEEPER;
-    /// @notice False until the first (and only) `setKeeper` call succeeds.
     bool public keeperSet;
 
-    /// @notice LP fee (in hundredths of a bip) for the low-volatility tier.
     uint24 public immutable LOW_FEE;
-    /// @notice LP fee for the medium-volatility tier.
     uint24 public immutable MEDIUM_FEE;
-    /// @notice LP fee applied for the high-volatility tier, and the fail-safe
-    /// fee used whenever volatility data is stale.
     uint24 public immutable HIGH_FEE;
 
-    /// @notice Volatility at or below this value maps to `LOW_FEE`.
     uint256 public immutable LOW_VOLATILITY_MAX;
-    /// @notice Volatility at or below this value (and above `LOW_VOLATILITY_MAX`) maps to `MEDIUM_FEE`.
-    /// @dev Volatility above this value maps to `HIGH_FEE`.
     uint256 public immutable MEDIUM_VOLATILITY_MAX;
-
-    /// @notice Maximum age, in seconds, a volatility reading may have before
-    /// it is treated as untrustworthy.
-    /// @dev On staleness the hook fails *safe*, not open: it falls back to
-    /// `HIGH_FEE`, never to a lower tier, and it never reverts the swap.
     uint256 public immutable MAX_STALENESS;
 
-    /// @notice Same-block price move threshold, in basis points of the
-    /// block-start price, above which the MEV spike fee overrides the
-    /// volatility tier.
     uint256 public immutable MEV_PRICE_DELTA_THRESHOLD_BPS;
-    /// @notice Flat LP fee applied when the MEV check triggers.
     uint24 public immutable MEV_SPIKE_FEE;
 
     mapping(PoolId => VolatilityData) public volatilityOf;
@@ -127,11 +76,6 @@ contract AdaptiveFeeHook is BaseHook {
         _highFee.validate();
         _mevSpikeFee.validate();
 
-        // The constructor keeper is a TEMPORARY placeholder (typically the
-        // deployer). It must be bound exactly once to the real keeper via
-        // `setKeeper` before the hook is relied on in production — see that
-        // function's doc-comment for why immutability on both sides is
-        // impossible here.
         KEEPER = _keeper;
         LOW_FEE = _lowFee;
         MEDIUM_FEE = _mediumFee;
@@ -143,7 +87,6 @@ contract AdaptiveFeeHook is BaseHook {
         MEV_SPIKE_FEE = _mevSpikeFee;
     }
 
-    /// @inheritdoc BaseHook
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
             beforeInitialize: true,
@@ -163,28 +106,11 @@ contract AdaptiveFeeHook is BaseHook {
         });
     }
 
-    /// @notice Written by the keeper/bridge with the latest volatility
-    /// reading for a pool. Never called by traders or LPs.
     function setVolatility(PoolId poolId, uint256 newVolatility) external onlyKeeper {
         volatilityOf[poolId] = VolatilityData({value: newVolatility, updatedAt: block.timestamp});
         emit VolatilityUpdated(poolId, newVolatility, block.timestamp);
     }
 
-    /// @notice Binds the real keeper exactly once. Deploy sequence is:
-    ///   1. Deploy this hook with a temporary `keeper` (the deployer).
-    ///   2. Compute the hook's CREATE2 address via HookMiner (it depends on the
-    ///      temporary keeper address in its constructor args) and deploy the
-    ///      VolatilityFunctionsConsumer pointing at that hook address.
-    ///   3. Call `setKeeper(consumer)` ONCE from the temporary keeper. The hook
-    ///      now trusts only the consumer, and `keeperSet` latches true so this
-    ///      can never be called again — the keeper is frozen for the contract's
-    ///      lifetime, equivalent to a constructor arg.
-    /// @dev Callable by the current `KEEPER` (the temporary placeholder), not a
-    /// separate owner, precisely because the consumer does not exist yet at the
-    /// moment this must run; gating on `keeperSet` is what makes the binding
-    /// one-time and irreversible. This is a one-time address bind, not a
-    /// governable parameter, so it does not reopen the attack surface that a
-    /// mutable fee would.
     function setKeeper(address newKeeper) external onlyKeeper {
         if (keeperSet) revert KeeperAlreadySet();
         if (newKeeper == address(0) || newKeeper == KEEPER) revert InvalidKeeper();
@@ -225,55 +151,35 @@ contract AdaptiveFeeHook is BaseHook {
             );
     }
 
-    /// @notice Maps the pool's current volatility reading to a fee tier,
-    /// falling back to `HIGH_FEE` if the reading is missing or stale.
-    /// @dev Fail-safe, not fail-open: staleness (including "never written")
-    /// always resolves to the highest tier, never a lower one.
     function _tierFee(PoolId poolId) internal view returns (uint24) {
         VolatilityData memory data = volatilityOf[poolId];
 
-        if (block.timestamp - data.updatedAt > MAX_STALENESS) {
-            return HIGH_FEE;
+        unchecked {
+            if (block.timestamp - data.updatedAt > MAX_STALENESS) return HIGH_FEE;
         }
-        if (data.value <= LOW_VOLATILITY_MAX) {
-            return LOW_FEE;
-        }
-        if (data.value <= MEDIUM_VOLATILITY_MAX) {
-            return MEDIUM_FEE;
-        }
+        if (data.value <= LOW_VOLATILITY_MAX) return LOW_FEE;
+        if (data.value <= MEDIUM_VOLATILITY_MAX) return MEDIUM_FEE;
         return HIGH_FEE;
     }
 
-    /// @notice Compares the pool's current price to the price recorded at
-    /// the first swap this hook observed in the current block, and records
-    /// the current price as the baseline as a side effect if this is the
-    /// first swap this hook has seen this block.
-    /// @dev This check is independent of the volatility tier above — it
-    /// runs unconditionally on every swap, on the theory that a sandwich
-    /// attacker doesn't care what tier the pool is quoting. Approximates
-    /// price movement via sqrtPriceX96 directly (rather than squaring it
-    /// into a true price) since the ratio is monotonic and this avoids
-    /// overflow-prone fixed-point squaring for what is, for this MVP, a
-    /// threshold comparison rather than an exact price feed.
-    /// @return mevTriggered True if the same-block move exceeded the threshold.
-    function _checkAndUpdateMevBaseline(PoolId poolId) internal returns (bool mevTriggered) {
+    /// @dev Relative price deviation approximated via sqrtPriceX96 delta without fixed-point squaring.
+    function _checkAndUpdateMevBaseline(PoolId poolId) internal returns (bool) {
         (uint160 currentSqrtPriceX96,,,) = poolManager.getSlot0(poolId);
         BlockPriceSnapshot storage snapshot = blockBaselineOf[poolId];
 
-        if (snapshot.blockNumber != block.number) {
-            snapshot.blockNumber = block.number;
+        uint256 currentBlock = block.number;
+        if (snapshot.blockNumber != currentBlock) {
+            snapshot.blockNumber = currentBlock;
             snapshot.sqrtPriceX96 = currentSqrtPriceX96;
             return false;
         }
 
         uint160 baseline = snapshot.sqrtPriceX96;
-        uint256 diff = currentSqrtPriceX96 > baseline ? currentSqrtPriceX96 - baseline : baseline - currentSqrtPriceX96;
+        uint256 diff;
+        unchecked {
+            diff = currentSqrtPriceX96 > baseline ? currentSqrtPriceX96 - baseline : baseline - currentSqrtPriceX96;
+        }
 
-        // sqrtPrice deviation of X bps corresponds to roughly 2*X bps of
-        // price deviation, but we threshold on the sqrtPrice ratio directly
-        // and size `MEV_PRICE_DELTA_THRESHOLD_BPS` for that in the
-        // deployment config rather than compensating for the factor of two
-        // here.
         return (diff * 10_000) / baseline > MEV_PRICE_DELTA_THRESHOLD_BPS;
     }
 }
