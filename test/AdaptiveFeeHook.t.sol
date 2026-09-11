@@ -332,6 +332,7 @@ contract AdaptiveFeeHookTest is Deployers {
         // New keeper can.
         vm.prank(newKeeper);
         hook.setVolatility(poolId, 10);
-        (uint256 value, ) = hook.volatilityOf(poolId); assertEq(value, 10);
+        (uint256 value,) = hook.volatilityOf(poolId);
+        assertEq(value, 10);
     }
 }

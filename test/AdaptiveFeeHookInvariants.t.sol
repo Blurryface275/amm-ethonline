@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
@@ -75,8 +74,7 @@ contract AdaptiveFeeHookInvariantsTest is Deployers {
         (hookPoolKey, hookPoolId) =
             initPool(currency0, currency1, IHooks(address(hook)), LPFeeLibrary.DYNAMIC_FEE_FLAG, SQRT_PRICE_1_1);
 
-        (staticPoolKey, staticPoolId) =
-            initPool(currency0, currency1, IHooks(address(0)), 3_000, SQRT_PRICE_1_1);
+        (staticPoolKey, staticPoolId) = initPool(currency0, currency1, IHooks(address(0)), 3_000, SQRT_PRICE_1_1);
 
         modifyLiquidityRouter.modifyLiquidity(
             hookPoolKey,
@@ -177,14 +175,14 @@ contract AdaptiveFeeHookInvariantsTest is Deployers {
     function test_Invariant_PriceDirectionAndStateConsistency() public {
         _setVolatility(200);
 
-        (uint160 sqrtP0,,, ) = manager.getSlot0(hookPoolId);
+        (uint160 sqrtP0,,,) = manager.getSlot0(hookPoolId);
 
         swap(hookPoolKey, true, -1e18, ZERO_BYTES);
-        (uint160 sqrtP1,,, ) = manager.getSlot0(hookPoolId);
+        (uint160 sqrtP1,,,) = manager.getSlot0(hookPoolId);
         assertLt(sqrtP1, sqrtP0, "zeroForOne swap must decrease sqrtPriceX96");
 
         swap(hookPoolKey, false, -2e18, ZERO_BYTES);
-        (uint160 sqrtP2,,, ) = manager.getSlot0(hookPoolId);
+        (uint160 sqrtP2,,,) = manager.getSlot0(hookPoolId);
         assertGt(sqrtP2, sqrtP1, "oneForZero swap must increase sqrtPriceX96");
     }
 
@@ -222,6 +220,8 @@ contract AdaptiveFeeHookInvariantsTest is Deployers {
         console.log("Static pool attacker PnL (token0):", staticPnL);
         console.log("Hook pool attacker PnL (token0)  :", hookPnL);
 
-        assertLt(hookPnL, staticPnL, "Hook MEV dampener must reduce attacker profitability compared to unmitigated pool");
+        assertLt(
+            hookPnL, staticPnL, "Hook MEV dampener must reduce attacker profitability compared to unmitigated pool"
+        );
     }
 }

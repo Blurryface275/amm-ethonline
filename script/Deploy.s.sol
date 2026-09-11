@@ -94,9 +94,8 @@ contract DeployScript is Script {
             MEV_THRESHOLD_BPS,
             MEV_SPIKE_FEE
         );
-        (address hookAddress, bytes32 salt) = HookMiner.find(
-            StdConstants.CREATE2_FACTORY, flags, type(AdaptiveFeeHook).creationCode, hookConstructorArgs
-        );
+        (address hookAddress, bytes32 salt) =
+            HookMiner.find(StdConstants.CREATE2_FACTORY, flags, type(AdaptiveFeeHook).creationCode, hookConstructorArgs);
 
         AdaptiveFeeHook hook = new AdaptiveFeeHook{salt: salt}(
             manager,
@@ -124,7 +123,8 @@ contract DeployScript is Script {
         //    so this can never run again. After this, only the consumer can
         //    write volatility — the placeholder deployer key is rotated out.
         hook.setKeeper(address(consumer));
-        console2.log("Keeper bound ->", address(consumer)); console2.log("keeperSet:", hook.keeperSet());
+        console2.log("Keeper bound ->", address(consumer));
+        console2.log("keeperSet:", hook.keeperSet());
 
         // 4) Initialize a dynamic-fee pool so the hook is live and callable.
         PoolKey memory key = PoolKey({
