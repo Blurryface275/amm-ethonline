@@ -57,8 +57,15 @@ contract DeployScript is Script {
 
         vm.startBroadcast();
 
-        PoolManager manager = new PoolManager(deployer);
-        console2.log("PoolManager:", address(manager));
+        PoolManager manager;
+        if (block.chainid == 11155111) {
+            // Canonical Uniswap v4 PoolManager on Sepolia
+            manager = PoolManager(0xE03A1074c86CFeDd5C142C4F04F1a1536e203543);
+            console2.log("Using Canonical Uniswap v4 PoolManager on Sepolia:", address(manager));
+        } else {
+            manager = new PoolManager(deployer);
+            console2.log("Deployed Local PoolManager:", address(manager));
+        }
 
         MockERC20 tokenA = new MockERC20("Token A", "TKA", 18);
         MockERC20 tokenB = new MockERC20("Token B", "TKB", 18);

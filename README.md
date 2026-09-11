@@ -66,6 +66,23 @@ Measured using Foundry tests (`test/AdaptiveFeeHookInvariants.t.sol`) with Solc 
 
 ---
 
+
+## 🚀 Live On-Chain Deployments (Ethereum Sepolia)
+
+All core protocol contracts are deployed and **verified on Sepolia Etherscan**, integrated directly with the **Canonical Uniswap v4 Singleton**:
+
+| Contract / Resource | Sepolia Address / Hash | Verified Status |
+| :--- | :--- | :---: |
+| **Canonical Uniswap v4 PoolManager** | [`0xE03A1074c86CFeDd5C142C4F04F1a1536e203543`](https://sepolia.etherscan.io/address/0xE03A1074c86CFeDd5C142C4F04F1a1536e203543) | Canonical Official |
+| **AdaptiveFeeHook** | [`0xab4c103d0b4783d736e12Ea01a98945f08122080`](https://sepolia.etherscan.io/address/0xab4c103d0b4783d736e12ea01a98945f08122080#code) | 🟢 **Verified (Pass)** |
+| **VolatilityFunctionsConsumer** | [`0xbB833c9853587f5C562B407D2D95B0f0509AB733`](https://sepolia.etherscan.io/address/0xbb833c9853587f5c562b407d2d95b0f0509ab733#code) | 🟢 **Verified (Pass)** |
+| **Dynamic Fee Pool ID** | `0xfa002164aa10ade9439fd684b53822f04455c76dd80261f3c031766b00a44ccf` | 🟢 Active on v4 |
+| **Pool Initialization Tx** | [`0x733bbbc3...`](https://sepolia.etherscan.io/tx/0x733bbbc3a58b21f9cff346ac93941c3e52d67302a8edcd25dab95886233e575a) | 🟢 Confirmed |
+| **Mock Token A (TKA)** | [`0xcb5c55727abc3067bc7e26b66ad0f5140af0e64a`](https://sepolia.etherscan.io/address/0xcb5c55727abc3067bc7e26b66ad0f5140af0e64a) | 🟢 Deployed |
+| **Mock Token B (TKB)** | [`0xc8973f90161307791ce6e18210E25cB00e5079a0`](https://sepolia.etherscan.io/address/0xc8973f90161307791ce6e18210e25cb00e5079a0) | 🟢 Deployed |
+
+---
+
 ## 🧪 Mathematical Invariants & Verification
 
 The smart contracts are backed by a comprehensive Foundry test suite with **32/32 passing tests**:

@@ -78,7 +78,7 @@ goal to core.
 
 - [x] Simple demo script or minimal frontend — show the MEV override triggering on a simulated sandwich, not just the volatility tiers changing (interactive sandbox, 4-step sandwich execution trace & demo preset loader added in `website/index.html`)
 - [x] README: problem, solution, architecture diagram, known limitations (comprehensive hackathon documentation with Mermaid architecture, gas benchmarks, math invariants, and documented attack surface trade-offs in `README.md`)
-- [ ] Deploy to testnet (deployment script scaffolded and tested in `script/Deploy.s.sol`; pending live Sepolia gas/funding)
+- [x] Deploy to testnet: successfully deployed and **verified on Ethereum Sepolia** (`AdaptiveFeeHook` at `0xab4c103d0b4783d736e12Ea01a98945f08122080`, verified on Etherscan, bound to canonical v4 PoolManager `0xE03A1074c86CFeDd5C142C4F04F1a1536e203543`)
 - [ ] Record 2–4 min demo video (ready for recording using the web sandbox or invariant test execution logs)
 
 ## Phase 7 — Submit (day 11–13, don't wait for the deadline)
