@@ -25,9 +25,9 @@ function renderOracleView(container) {
       <div class="card">
         <div class="card-header" style="margin-bottom:12px">
           <div>
-            <span class="card-title" style="font-size:18px">The Graph &amp; Chainlink Functions Pipeline</span>
+            <span class="card-title" style="font-size:18px">Protocol Architecture &amp; Oracle Infrastructure</span>
             <p style="color:var(--text-muted);font-size:13px;margin-top:2px">
-              Off-chain historical price indexing mapped to on-chain keeper updates via Chainlink DON.
+              Official Uniswap v4 Hook and Chainlink Functions keeper deployments on Ethereum Sepolia.
             </p>
           </div>
           <span class="pill-badge green">Pipeline Active</span>

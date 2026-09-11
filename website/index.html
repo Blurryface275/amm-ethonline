@@ -3,51 +3,46 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AdaptiveVol AMM — Uniswap v4 Dynamic Fee & MEV Dampening Hook</title>
-  <meta name="description" content="A next-generation Uniswap v4 hook that dynamically prices swaps by realized volatility and throttles same-block MEV sandwich attacks with a punitive fee spike. Built for ETHOnline 2026." />
-  <link rel="stylesheet" href="css/style.css?v=3" />
+  <title>Adaptive DEX — Uniswap v4 Dynamic Liquidity Protocol</title>
+  <meta name="description" content="Next-generation Uniswap v4 decentralized exchange with volatility-responsive dynamic fees and intra-block MEV protection on Ethereum Sepolia." />
+  <link rel="stylesheet" href="css/style.css?v=5" />
 </head>
 <body>
 
-  <!-- Top Navigation -->
+  <!-- Top Navigation Bar -->
   <nav class="navbar">
     <div class="nav-container">
       <a href="#" class="nav-brand">
         <div class="brand-icon">⚡</div>
-        <span>Adaptive<span class="highlight">Vol</span> AMM</span>
+        <span>Adaptive <span class="highlight">DEX</span> <span class="version-tag">v4</span></span>
       </a>
 
       <div class="nav-links">
         <button class="nav-tab active" data-target="pane-swap">
-          <span>💱</span>
-          <span>Swap</span>
+          <span>Trade</span>
         </button>
         <button class="nav-tab" data-target="pane-liquidity">
-          <span>💧</span>
-          <span>Liquidity</span>
-        </button>
-        <button class="nav-tab" data-target="pane-mev">
-          <span>🛡️</span>
-          <span>MEV Lab</span>
-        </button>
-        <button class="nav-tab" data-target="pane-oracle">
-          <span>🔮</span>
-          <span>Oracle & Subgraph</span>
+          <span>Pools</span>
         </button>
         <button class="nav-tab" data-target="pane-analytics">
-          <span>📊</span>
-          <span>Analytics</span>
+          <span>Explore</span>
+        </button>
+        <button class="nav-tab" data-target="pane-mev">
+          <span>MEV Shield</span>
+        </button>
+        <button class="nav-tab" data-target="pane-oracle">
+          <span>Contracts</span>
         </button>
       </div>
 
       <div class="nav-actions">
-        <div class="network-badge" id="nav-network-badge" title="Live Sepolia Node RPC Connection">
+        <div class="network-badge" id="nav-network-badge" title="Live Ethereum Sepolia RPC Connection">
           <span class="status-dot live-pulse"></span>
           <span id="nav-network-name">Sepolia</span>
           <span class="block-pill" id="nav-block-pill">#11,679,574</span>
         </div>
-        <button class="mode-toggle-btn" id="btn-mode-toggle" title="Toggle Live On-Chain vs Interactive Sandbox Mode">
-          <span id="mode-badge-indicator">🟢 Live Sepolia</span>
+        <button class="btn-faucet-nav" id="btn-nav-faucet" title="Mint 1,000 ETH & 1,000 USDC on Sepolia">
+          <span>🚰 Get Test Tokens</span>
         </button>
         <button class="btn-wallet" id="btn-wallet-connect">
           <span>Connect Wallet</span>
@@ -56,99 +51,87 @@
     </div>
   </nav>
 
+  <!-- Live On-Chain Telemetry Bar -->
+  <div class="telemetry-bar">
+    <div class="telemetry-item">
+      <span class="telemetry-label">Network</span>
+      <span class="telemetry-val"><span class="status-dot live-pulse"></span> Sepolia (11155111)</span>
+    </div>
+    <div class="telemetry-item">
+      <span class="telemetry-label">Uniswap v4 Pool</span>
+      <a href="https://sepolia.etherscan.io/address/0xE03A1074c86CFeDd5C142C4F04F1a1536e203543" target="_blank" class="telemetry-link" title="Canonical Uniswap v4 PoolManager on Sepolia">
+        0xfa00...4ccf ↗
+      </a>
+    </div>
+    <div class="telemetry-item">
+      <span class="telemetry-label">AdaptiveFeeHook</span>
+      <a href="https://sepolia.etherscan.io/address/0xab4c103d0b4783d736e12ea01a98945f08122080#code" target="_blank" class="telemetry-link verified" title="Verified Hook Contract on Sepolia">
+        0xab4c...2080 (Verified) ↗
+      </a>
+    </div>
+    <div class="telemetry-item">
+      <span class="telemetry-label">Volatility Keeper</span>
+      <a href="https://sepolia.etherscan.io/address/0xbb833c9853587f5c562b407d2d95b0f0509ab733#code" target="_blank" class="telemetry-link verified" title="Verified Chainlink Functions Consumer on Sepolia">
+        0xbB83...AB733 (Verified) ↗
+      </a>
+    </div>
+    <div class="telemetry-item">
+      <span class="telemetry-label">Latest Block</span>
+      <span class="telemetry-val" id="telemetry-block-number">#11,679,574</span>
+    </div>
+    <div class="telemetry-item">
+      <span class="telemetry-label">Node RPC</span>
+      <span class="telemetry-val" id="telemetry-sync-status" style="color:var(--accent-green)">🟢 Connected (38ms)</span>
+    </div>
+  </div>
+
   <!-- Main Application Body -->
   <main class="app-container">
 
-    <!-- Live On-Chain Telemetry Header Bar -->
-    <div class="telemetry-bar">
-      <div class="telemetry-item">
-        <span class="telemetry-label">Network</span>
-        <span class="telemetry-val"><span class="status-dot live-pulse"></span> Sepolia (11155111)</span>
-      </div>
-      <div class="telemetry-item">
-        <span class="telemetry-label">Canonical v4 Pool</span>
-        <a href="https://sepolia.etherscan.io/address/0xE03A1074c86CFeDd5C142C4F04F1a1536e203543" target="_blank" class="telemetry-link" title="Canonical Uniswap v4 PoolManager">
-          0xfa00...4ccf ↗
-        </a>
-      </div>
-      <div class="telemetry-item">
-        <span class="telemetry-label">AdaptiveFeeHook</span>
-        <a href="https://sepolia.etherscan.io/address/0xab4c103d0b4783d736e12ea01a98945f08122080#code" target="_blank" class="telemetry-link verified" title="Verified Hook Contract on Sepolia">
-          0xab4c...2080 (Verified) ↗
-        </a>
-      </div>
-      <div class="telemetry-item">
-        <span class="telemetry-label">Chainlink Consumer</span>
-        <a href="https://sepolia.etherscan.io/address/0xbb833c9853587f5c562b407d2d95b0f0509ab733#code" target="_blank" class="telemetry-link verified" title="Verified Keeper Consumer on Sepolia">
-          0xbB83...AB733 (Verified) ↗
-        </a>
-      </div>
-      <div class="telemetry-item">
-        <span class="telemetry-label">Latest Block</span>
-        <span class="telemetry-val" id="telemetry-block-number">#11,679,574</span>
-      </div>
-      <div class="telemetry-item">
-        <span class="telemetry-label">Sync Status</span>
-        <span class="telemetry-val" id="telemetry-sync-status" style="color:var(--accent-green)">🟢 Connected (42ms)</span>
-      </div>
-    </div>
-
-    <!-- TAB 1: SWAP MODULE -->
+    <!-- TAB 1: TRADE / SWAP -->
     <div class="tab-pane active" id="pane-swap">
       <div id="swap-container"></div>
     </div>
 
-    <!-- TAB 2: LIQUIDITY MODULE -->
+    <!-- TAB 2: POOLS / LIQUIDITY -->
     <div class="tab-pane" id="pane-liquidity">
-      <div id="liquidity-container">
-        <div class="swap-wrapper">
-          <div class="swap-card" style="max-width:720px;text-align:center;padding:40px 20px">
-            <h2 style="font-family:var(--font-heading);margin-bottom:8px">💧 Liquidity Provider Dashboard</h2>
-            <p style="color:var(--text-secondary);font-size:14px">Module 2: Add/Remove Liquidity, Dynamic Fee Accrual & Impermanent Loss Protection.</p>
-          </div>
-        </div>
-      </div>
+      <div id="liquidity-container"></div>
     </div>
 
-    <!-- TAB 3: MEV DEFENSE LAB -->
-    <div class="tab-pane" id="pane-mev">
-      <div id="mev-container">
-        <div class="swap-wrapper">
-          <div class="swap-card" style="max-width:720px;text-align:center;padding:40px 20px">
-            <h2 style="font-family:var(--font-heading);margin-bottom:8px">🛡️ MEV Sandwich Attack Defense Lab</h2>
-            <p style="color:var(--text-secondary);font-size:14px">Module 3: Visual Mempool, Same-Block Sandwich Simulation & Attacker PnL Decimator.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 4: ORACLE & SUBGRAPH -->
-    <div class="tab-pane" id="pane-oracle">
-      <div id="oracle-container">
-        <div class="swap-wrapper">
-          <div class="swap-card" style="max-width:720px;text-align:center;padding:40px 20px">
-            <h2 style="font-family:var(--font-heading);margin-bottom:8px">🔮 The Graph & Chainlink Functions Pipeline</h2>
-            <p style="color:var(--text-secondary);font-size:14px">Module 4: Real-time Subgraph Event Explorer & Fail-Safe Staleness Monitor.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 5: ANALYTICS -->
+    <!-- TAB 3: EXPLORE / ANALYTICS -->
     <div class="tab-pane" id="pane-analytics">
-      <div id="analytics-container">
-        <div class="swap-wrapper">
-          <div class="swap-card" style="max-width:720px;text-align:center;padding:40px 20px">
-            <h2 style="font-family:var(--font-heading);margin-bottom:8px">📊 AMM Analytics & Gas Benchmarks</h2>
-            <p style="color:var(--text-secondary);font-size:14px">Module 5: Overhead Benchmarks, Pool Depth & Invariant Verification.</p>
-          </div>
-        </div>
-      </div>
+      <div id="analytics-container"></div>
+    </div>
+
+    <!-- TAB 4: MEV SHIELD -->
+    <div class="tab-pane" id="pane-mev">
+      <div id="mev-container"></div>
+    </div>
+
+    <!-- TAB 5: PROTOCOL CONTRACTS -->
+    <div class="tab-pane" id="pane-oracle">
+      <div id="oracle-container"></div>
     </div>
 
   </main>
 
+  <!-- DEX Footer -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <div class="footer-left">
+        <span class="footer-brand">⚡ Adaptive DEX</span>
+        <span class="footer-copy">Built on Uniswap v4 · Live on Ethereum Sepolia Testnet</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://sepolia.etherscan.io/address/0xab4c103d0b4783d736e12ea01a98945f08122080#code" target="_blank">Hook Etherscan</a>
+        <a href="https://sepolia.etherscan.io/address/0xE03A1074c86CFeDd5C142C4F04F1a1536e203543" target="_blank">PoolManager</a>
+        <a href="https://github.com/uniswap/v4-core" target="_blank">Uniswap v4 Core</a>
+        <a href="https://docs.chain.link/chainlink-functions" target="_blank">Chainlink Functions</a>
+      </div>
+    </div>
+  </footer>
+
   <script src="js/vendor/ethers.umd.min.js"></script>
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=5"></script>
 </body>
 </html>

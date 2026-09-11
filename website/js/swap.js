@@ -1,87 +1,149 @@
 /* ==========================================================================
-   Adaptive Volatility AMM - Swap Module Controller (Soft Minimalist)
+   Adaptive Volatility AMM - Production DEX Swap Module (On-Chain Sepolia)
    ========================================================================== */
 
-import { state, subscribe, calculateSwapOutput, executeSwap, getActiveFee, advanceBlock } from './state.js';
+import {
+  state,
+  subscribe,
+  notify,
+  getActiveFee,
+  calculateSwapOutput,
+  recordTransaction,
+  syncWithSepolia
+} from './state.js';
+import {
+  SEPOLIA_CONFIG,
+  getWeb3Signer,
+  checkTokenAllowance,
+  sendApproveTx,
+  sendSwapTx,
+  sendClaimFaucetTx
+} from './contracts.js';
 
 let currentTokenIn = 'ETH';
 let currentTokenOut = 'USDC';
+let isApproving = false;
+let isSwapping = false;
+let hasAllowance = false;
 
 export function initSwapModule() {
+  renderSwapUI();
+  bindEvents();
+  updateSwapView();
+
+  subscribe(() => {
+    updateSwapView();
+    checkCurrentAllowance();
+  });
+}
+
+function renderSwapUI() {
   const container = document.getElementById('swap-container');
   if (!container) return;
 
-  renderSwapCard(container);
-  bindEvents();
-  subscribe(() => updateSwapView());
-  updateSwapView();
-}
-
-function renderSwapCard(container) {
   container.innerHTML = `
-    <div class="swap-container-box">
-      <div class="swap-panel">
-        <div class="card-header">
-          <span class="card-title">Swap</span>
-          <div class="pill-badge green" id="live-fee-badge" title="Dynamic LP fee calculated by AdaptiveFeeHook">
-            <span class="status-dot"></span>
-            <span id="fee-badge-text">0.05% Dynamic Fee</span>
+    <div class="swap-wrapper">
+      <div class="swap-card">
+        <!-- Swap Header -->
+        <div class="swap-header">
+          <div style="display:flex;align-items:center;gap:10px">
+            <h1 class="swap-title">Swap</h1>
+            <div class="pill-badge green" id="live-fee-badge">
+              <span class="status-dot live-pulse"></span>
+              <span id="fee-badge-text">0.05% Dynamic</span>
+            </div>
+          </div>
+          <div class="swap-settings-wrapper">
+            <button class="btn-icon" id="btn-toggle-slippage" title="Slippage Settings">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </button>
+            <!-- Slippage Popover -->
+            <div class="slippage-popover hidden" id="slippage-dropdown">
+              <div class="slippage-title">Max Slippage Tolerance</div>
+              <div class="slippage-options">
+                <button class="slippage-btn" data-slip="10">0.1%</button>
+                <button class="slippage-btn active" data-slip="50">0.5%</button>
+                <button class="slippage-btn" data-slip="100">1.0%</button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Token In -->
+        <!-- Token In Field -->
         <div class="token-field">
           <div class="token-field-header">
             <span>You pay</span>
-            <span>Balance: <span id="token-in-bal" style="color:var(--text-muted);cursor:pointer;font-weight:500">10.00</span></span>
+            <div class="balance-display">
+              <span>Balance: <strong id="token-in-bal">0.00</strong></span>
+              <button class="btn-max" id="btn-max-in">MAX</button>
+            </div>
           </div>
-          <div class="token-field-row">
-            <input type="number" class="token-input" id="input-amount-in" placeholder="0" step="any" min="0" autocomplete="off" />
+          <div class="token-input-row">
+            <input 
+              type="number" 
+              class="token-amount-input" 
+              id="input-amount-in" 
+              placeholder="0.0" 
+              min="0" 
+              step="any"
+              autocomplete="off"
+            />
             <button class="token-btn" id="btn-select-token-in">
-              <span id="token-in-icon">ETH</span>
-              <span id="token-in-symbol">ETH</span>
+              <span class="token-icon" id="token-in-icon">🔷</span>
+              <span class="token-symbol" id="token-in-symbol">ETH</span>
             </button>
           </div>
-          <div class="token-field-header" style="margin-top:6px;margin-bottom:0">
+          <div class="token-field-footer">
             <span class="token-usd-sub" id="token-in-usd">~$0.00</span>
-            <button class="btn-ghost" id="btn-max-in" style="padding:1px 6px;font-size:11px">Max</button>
           </div>
         </div>
 
-        <!-- Switch Button -->
-        <button class="swap-switch-btn" id="btn-flip-tokens" title="Switch tokens">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-        </button>
+        <!-- Direction Flip Button -->
+        <div class="flip-wrapper">
+          <button class="btn-flip" id="btn-flip-tokens" title="Switch token direction">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M7 10l5 5 5-5H7z"></path>
+            </svg>
+          </button>
+        </div>
 
-        <!-- Token Out -->
+        <!-- Token Out Field -->
         <div class="token-field">
           <div class="token-field-header">
             <span>You receive</span>
-            <span>Balance: <span id="token-out-bal" style="color:var(--text-muted);font-weight:500">25,000.00</span></span>
+            <div class="balance-display">
+              <span>Balance: <strong id="token-out-bal">0.00</strong></span>
+            </div>
           </div>
-          <div class="token-field-row">
-            <input type="number" class="token-input" id="input-amount-out" placeholder="0" readonly />
+          <div class="token-input-row">
+            <input 
+              type="text" 
+              class="token-amount-input" 
+              id="input-amount-out" 
+              placeholder="0.0" 
+              readonly 
+            />
             <button class="token-btn" id="btn-select-token-out">
-              <span id="token-out-icon">USDC</span>
-              <span id="token-out-symbol">USDC</span>
+              <span class="token-icon" id="token-out-icon">💵</span>
+              <span class="token-symbol" id="token-out-symbol">USDC</span>
             </button>
           </div>
-          <div class="token-field-header" style="margin-top:6px;margin-bottom:0">
+          <div class="token-field-footer">
             <span class="token-usd-sub" id="token-out-usd">~$0.00</span>
           </div>
         </div>
 
-        <!-- Details Accordion -->
-        <div class="info-box">
+        <!-- Trade Details Card -->
+        <div class="info-box" id="trade-details-box">
           <div class="info-row">
             <span>Rate</span>
             <span class="info-val" id="trade-rate">—</span>
           </div>
           <div class="info-row">
-            <span>Dynamic LP Fee</span>
+            <span>Dynamic Fee</span>
             <span class="info-val" id="trade-fee">—</span>
           </div>
           <div class="info-row">
@@ -93,30 +155,22 @@ function renderSwapCard(container) {
             <span class="info-val" id="trade-min-out">—</span>
           </div>
           <div class="info-row">
-            <span>Current Block</span>
-            <span class="info-val" id="block-status">#18920420</span>
+            <span>Routing</span>
+            <span class="info-val" style="color:var(--accent-blue)">Uniswap v4 (Sepolia)</span>
           </div>
         </div>
 
-        <!-- Submit Button -->
+        <!-- Primary Action Button -->
         <button class="btn-action" id="btn-submit-swap">
-          <span>Swap</span>
+          <span>Connect Wallet</span>
         </button>
-      </div>
 
-      <!-- Clean Shield Callout -->
-      <div class="shield-banner">
-        <div class="shield-icon">🛡</div>
-        <div style="flex:1">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <span style="font-weight:600;color:var(--text-main)">MEV Dampening Active</span>
-            <button class="btn-ghost" id="btn-sim-advance-block" style="font-size:11px;padding:2px 8px">
-              Mine Next Block
-            </button>
-          </div>
-          <span>
-            If intra-block price movement exceeds 100 bps, the swap fee spikes to 5.00% to protect swappers and LPs against sandwich attacks.
-          </span>
+        <!-- Testnet Faucet Quick Callout -->
+        <div class="faucet-quickbar">
+          <span>Need test tokens on Sepolia?</span>
+          <button class="faucet-link-btn" id="btn-quick-faucet">
+            <span>🚰 Claim 1,000 ETH & USDC</span>
+          </button>
         </div>
       </div>
     </div>
@@ -128,9 +182,14 @@ function bindEvents() {
   const flipBtn = document.getElementById('btn-flip-tokens');
   const maxBtn = document.getElementById('btn-max-in');
   const swapBtn = document.getElementById('btn-submit-swap');
-  const advanceBlockBtn = document.getElementById('btn-sim-advance-block');
+  const slippageToggle = document.getElementById('btn-toggle-slippage');
+  const slippageDropdown = document.getElementById('slippage-dropdown');
+  const quickFaucetBtn = document.getElementById('btn-quick-faucet');
 
-  amountInput.addEventListener('input', () => updateCalculations());
+  amountInput.addEventListener('input', () => {
+    updateCalculations();
+    checkCurrentAllowance();
+  });
 
   flipBtn.addEventListener('click', () => {
     const temp = currentTokenIn;
@@ -138,52 +197,120 @@ function bindEvents() {
     currentTokenOut = temp;
     updateSwapView();
     updateCalculations();
+    checkCurrentAllowance();
   });
 
   maxBtn.addEventListener('click', () => {
     const bal = state.tokens[currentTokenIn].balance;
-    amountInput.value = bal > 0 ? (bal * 0.999).toFixed(4) : 0;
+    amountInput.value = bal > 0 ? (bal * 0.999).toFixed(4) : '0';
     updateCalculations();
+    checkCurrentAllowance();
   });
 
-  swapBtn.addEventListener('click', () => handleSwapSubmission());
+  swapBtn.addEventListener('click', () => handleMainButtonClick());
 
-  advanceBlockBtn.addEventListener('click', () => {
-    advanceBlock();
-    showToast('Block advanced. Price baseline has been reset.', 'success');
-  });
+  if (quickFaucetBtn) {
+    quickFaucetBtn.addEventListener('click', () => handleQuickFaucet());
+  }
+
+  if (slippageToggle && slippageDropdown) {
+    slippageToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      slippageDropdown.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', () => {
+      slippageDropdown.classList.add('hidden');
+    });
+
+    const slipBtns = slippageDropdown.querySelectorAll('.slippage-btn');
+    slipBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        slipBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.settings.slippageBps = parseInt(btn.dataset.slip, 10);
+        updateCalculations();
+        slippageDropdown.classList.add('hidden');
+        showToast(`Slippage tolerance set to ${(state.settings.slippageBps / 100).toFixed(1)}%`, 'info');
+      });
+    });
+  }
+}
+
+async function checkCurrentAllowance() {
+  if (!state.wallet.connected || !state.wallet.address) {
+    updateButtonLabel('Connect Wallet');
+    return;
+  }
+
+  const amountIn = parseFloat(document.getElementById('input-amount-in')?.value) || 0;
+  const tokenInAddress = state.tokens[currentTokenIn].address;
+  const spender = SEPOLIA_CONFIG.contracts.poolSwapTest;
+
+  try {
+    const allowance = await checkTokenAllowance(state.wallet.address, tokenInAddress, spender);
+    const amountInWei = window.ethers.parseEther(amountIn > 0 ? amountIn.toString() : '0.001');
+
+    hasAllowance = allowance >= amountInWei;
+
+    if (isApproving) {
+      updateButtonLabel('Approving in MetaMask...', true);
+    } else if (isSwapping) {
+      updateButtonLabel('Swapping in MetaMask...', true);
+    } else if (amountIn <= 0) {
+      updateButtonLabel('Enter an amount');
+    } else if (state.tokens[currentTokenIn].balance < amountIn) {
+      updateButtonLabel(`Insufficient ${currentTokenIn} balance`);
+    } else if (!hasAllowance) {
+      updateButtonLabel(`Approve ${currentTokenIn}`);
+    } else {
+      updateButtonLabel('Swap');
+    }
+  } catch (err) {
+    console.warn('Allowance check error:', err);
+  }
+}
+
+function updateButtonLabel(text, disabled = false) {
+  const btn = document.getElementById('btn-submit-swap');
+  if (!btn) return;
+  btn.innerHTML = disabled ? `<span class="spinner"></span> <span>${text}</span>` : `<span>${text}</span>`;
+  btn.disabled = disabled;
 }
 
 function updateSwapView() {
   const tokenIn = state.tokens[currentTokenIn];
   const tokenOut = state.tokens[currentTokenOut];
 
-  document.getElementById('token-in-symbol').textContent = tokenIn.symbol;
-  document.getElementById('token-in-icon').textContent = tokenIn.symbol;
-  document.getElementById('token-in-bal').textContent = tokenIn.balance.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  const inSym = document.getElementById('token-in-symbol');
+  const inIcon = document.getElementById('token-in-icon');
+  const inBal = document.getElementById('token-in-bal');
 
-  document.getElementById('token-out-symbol').textContent = tokenOut.symbol;
-  document.getElementById('token-out-icon').textContent = tokenOut.symbol;
-  document.getElementById('token-out-bal').textContent = tokenOut.balance.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const outSym = document.getElementById('token-out-symbol');
+  const outIcon = document.getElementById('token-out-icon');
+  const outBal = document.getElementById('token-out-bal');
+
+  if (inSym) inSym.textContent = tokenIn.symbol;
+  if (inIcon) inIcon.textContent = tokenIn.icon;
+  if (inBal) inBal.textContent = tokenIn.balance.toLocaleString(undefined, { maximumFractionDigits: 4 });
+
+  if (outSym) outSym.textContent = tokenOut.symbol;
+  if (outIcon) outIcon.textContent = tokenOut.icon;
+  if (outBal) outBal.textContent = tokenOut.balance.toLocaleString(undefined, { maximumFractionDigits: 4 });
 
   const feeData = getActiveFee();
   const feeBadge = document.getElementById('live-fee-badge');
   const feeText = document.getElementById('fee-badge-text');
 
-  feeText.textContent = `${(feeData.appliedFee / 10000).toFixed(2)}% ${feeData.isMevTriggered ? 'MEV Spike' : 'Dynamic'}`;
-  
-  if (feeData.isMevTriggered) {
-    feeBadge.className = 'pill-badge rose';
-  } else {
-    feeBadge.className = 'pill-badge green';
+  if (feeText && feeBadge) {
+    feeText.textContent = `${(feeData.appliedFee / 10000).toFixed(2)}% Dynamic`;
+    feeBadge.className = feeData.isMevTriggered ? 'pill-badge rose' : 'pill-badge green';
   }
-
-  const blockEl = document.getElementById('block-status');
-  if (blockEl) blockEl.textContent = `#${state.network.blockNumber.toLocaleString()} (${state.pool.sameBlockSwapsCount} in block)`;
 }
 
 function updateCalculations() {
-  const amountIn = parseFloat(document.getElementById('input-amount-in').value) || 0;
+  const amountIn = parseFloat(document.getElementById('input-amount-in')?.value) || 0;
   const tokenIn = state.tokens[currentTokenIn];
   const tokenOut = state.tokens[currentTokenOut];
 
@@ -196,65 +323,151 @@ function updateCalculations() {
   const minOutEl = document.getElementById('trade-min-out');
 
   if (amountIn <= 0) {
-    amountOutEl.value = '';
-    inUsdEl.textContent = '~$0.00';
-    outUsdEl.textContent = '~$0.00';
-    rateEl.textContent = '—';
-    feeEl.textContent = '—';
-    impactEl.textContent = '0.00%';
-    minOutEl.textContent = '—';
+    if (amountOutEl) amountOutEl.value = '';
+    if (inUsdEl) inUsdEl.textContent = '~$0.00';
+    if (outUsdEl) outUsdEl.textContent = '~$0.00';
+    if (rateEl) rateEl.textContent = '—';
+    if (feeEl) feeEl.textContent = '—';
+    if (impactEl) impactEl.textContent = '0.00%';
+    if (minOutEl) minOutEl.textContent = '—';
     return;
   }
 
   const result = calculateSwapOutput(amountIn, currentTokenIn);
-  amountOutEl.value = result.amountOut.toFixed(result.amountOut > 100 ? 2 : 5);
+  if (amountOutEl) amountOutEl.value = result.amountOut.toFixed(4);
 
-  inUsdEl.textContent = `~$${(amountIn * tokenIn.priceUSD).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  outUsdEl.textContent = `~$${(result.amountOut * tokenOut.priceUSD).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (inUsdEl) inUsdEl.textContent = `~$${(amountIn * tokenIn.priceUSD).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (outUsdEl) outUsdEl.textContent = `~$${(result.amountOut * tokenOut.priceUSD).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  rateEl.textContent = `1 ${tokenIn.symbol} ≈ ${(result.rate).toFixed(tokenIn.symbol === 'ETH' ? 2 : 4)} ${tokenOut.symbol}`;
-  feeEl.textContent = `${result.appliedFeePercent}% (${result.reason})`;
-  feeEl.style.color = result.isMevTriggered ? 'var(--accent-rose)' : 'var(--text-main)';
-
-  impactEl.textContent = `${result.priceImpact.toFixed(2)}%`;
-  impactEl.style.color = result.priceImpact > 3.0 ? 'var(--accent-rose)' : result.priceImpact > 1.0 ? 'var(--accent-amber)' : 'var(--text-main)';
+  if (rateEl) rateEl.textContent = `1 ${tokenIn.symbol} ≈ ${result.rate.toFixed(4)} ${tokenOut.symbol}`;
+  if (feeEl) feeEl.textContent = `${result.appliedFeePercent}%`;
+  
+  if (impactEl) {
+    impactEl.textContent = `${result.priceImpact.toFixed(2)}%`;
+    impactEl.style.color = result.priceImpact > 3.0 ? 'var(--accent-rose)' : 'var(--text-main)';
+  }
 
   const minAmountOut = result.amountOut * (1 - (state.settings.slippageBps / 10000));
-  minOutEl.textContent = `${minAmountOut.toFixed(minAmountOut > 100 ? 2 : 4)} ${tokenOut.symbol}`;
+  if (minOutEl) minOutEl.textContent = `${minAmountOut.toFixed(4)} ${tokenOut.symbol}`;
 }
 
-function handleSwapSubmission() {
-  const amountIn = parseFloat(document.getElementById('input-amount-in').value) || 0;
+async function handleMainButtonClick() {
+  // 1. Connect wallet if not connected
+  if (!state.wallet.connected) {
+    const connectBtn = document.getElementById('btn-wallet-connect');
+    if (connectBtn) connectBtn.click();
+    return;
+  }
+
+  const amountIn = parseFloat(document.getElementById('input-amount-in')?.value) || 0;
   if (amountIn <= 0) {
     showToast('Enter an amount to swap', 'warn');
     return;
   }
 
-  const tokenIn = state.tokens[currentTokenIn];
-  if (tokenIn.balance < amountIn) {
+  if (state.tokens[currentTokenIn].balance < amountIn) {
     showToast(`Insufficient ${currentTokenIn} balance`, 'error');
     return;
   }
 
-  const result = calculateSwapOutput(amountIn, currentTokenIn);
-  const minAmountOut = result.amountOut * (1 - (state.settings.slippageBps / 10000));
+  // 2. If token not approved, trigger approval
+  if (!hasAllowance) {
+    await handleTokenApproval();
+    return;
+  }
 
+  // 3. Trigger on-chain swap transaction
+  await handleOnChainSwap(amountIn);
+}
+
+async function handleTokenApproval() {
   try {
-    const executed = executeSwap(amountIn, currentTokenIn, minAmountOut);
-    document.getElementById('input-amount-in').value = '';
-    updateCalculations();
-    
-    if (executed.isMevTriggered) {
-      showToast(`Swap completed with 5.00% MEV spike penalty applied`, 'warn');
-    } else {
-      showToast(`Swapped ${amountIn} ${currentTokenIn} for ${executed.amountOut.toFixed(2)} ${currentTokenOut}`, 'success');
-    }
+    isApproving = true;
+    updateButtonLabel(`Approving ${currentTokenIn}...`, true);
+    showToast(`Please confirm ${currentTokenIn} spend approval in MetaMask`, 'info');
+
+    const signer = await getWeb3Signer();
+    if (!signer) throw new Error('No Web3 wallet signer available');
+
+    const tokenAddress = state.tokens[currentTokenIn].address;
+    const spender = SEPOLIA_CONFIG.contracts.poolSwapTest;
+
+    const tx = await sendApproveTx(signer, tokenAddress, spender);
+    showToast(`Approval submitted. Waiting for confirmation...`, 'info', tx.hash);
+
+    await tx.wait(1);
+    isApproving = false;
+    hasAllowance = true;
+
+    showToast(`${currentTokenIn} approval confirmed on Sepolia!`, 'success', tx.hash);
+    checkCurrentAllowance();
   } catch (err) {
-    showToast(err.message || 'Swap failed', 'error');
+    isApproving = false;
+    console.error('Approval failed:', err);
+    showToast(err.reason || err.message || 'Approval rejected by user', 'error');
+    checkCurrentAllowance();
   }
 }
 
-export function showToast(message, type = 'success') {
+async function handleOnChainSwap(amountIn) {
+  try {
+    isSwapping = true;
+    updateButtonLabel('Confirming Swap in MetaMask...', true);
+    showToast('Please confirm swap transaction in MetaMask', 'info');
+
+    const signer = await getWeb3Signer();
+    if (!signer) throw new Error('No Web3 wallet signer available');
+
+    const zeroForOne = currentTokenIn === 'ETH';
+    const amountInWei = window.ethers.parseEther(amountIn.toString());
+
+    const tx = await sendSwapTx(signer, zeroForOne, amountInWei);
+    showToast(`Swap submitted to Sepolia: ${tx.hash.slice(0, 10)}...`, 'info', tx.hash);
+
+    const receipt = await tx.wait(1);
+    isSwapping = false;
+
+    showToast(`Swap confirmed on Sepolia!`, 'success', receipt.hash);
+    recordTransaction(receipt.hash, 'Swap', `Swapped ${amountIn} ${currentTokenIn} for ${currentTokenOut}`);
+
+    // Reset input and refresh balances
+    document.getElementById('input-amount-in').value = '';
+    updateCalculations();
+    await syncWithSepolia();
+    checkCurrentAllowance();
+  } catch (err) {
+    isSwapping = false;
+    console.error('Swap failed:', err);
+    showToast(err.reason || err.shortMessage || err.message || 'Swap transaction reverted or rejected', 'error');
+    checkCurrentAllowance();
+  }
+}
+
+async function handleQuickFaucet() {
+  if (!state.wallet.connected) {
+    showToast('Connect your wallet first to claim test tokens', 'warn');
+    return;
+  }
+
+  try {
+    showToast('Please confirm token mint in MetaMask', 'info');
+    const signer = await getWeb3Signer();
+    if (!signer) throw new Error('No Web3 wallet signer available');
+
+    const tx = await sendClaimFaucetTx(signer, state.wallet.address, 'BOTH');
+    showToast('Minting 1,000 ETH and 1,000 USDC...', 'info', tx.hash);
+
+    await tx.wait(1);
+    showToast('Minted 1,000 ETH & 1,000 USDC on Sepolia!', 'success', tx.hash);
+    await syncWithSepolia();
+    checkCurrentAllowance();
+  } catch (err) {
+    console.error('Faucet claim failed:', err);
+    showToast(err.reason || err.message || 'Faucet claim failed', 'error');
+  }
+}
+
+export function showToast(message, type = 'success', txHash = null) {
   let container = document.querySelector('.toast-container');
   if (!container) {
     container = document.createElement('div');
@@ -264,7 +477,13 @@ export function showToast(message, type = 'success') {
 
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.innerHTML = `<span>${message}</span>`;
+  
+  let content = `<span>${message}</span>`;
+  if (txHash) {
+    content += ` <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank" class="toast-link">View on Etherscan ↗</a>`;
+  }
+  
+  toast.innerHTML = content;
   container.appendChild(toast);
 
   setTimeout(() => {
@@ -272,5 +491,5 @@ export function showToast(message, type = 'success') {
     toast.style.transform = 'translateY(6px)';
     toast.style.transition = 'all 0.2s ease';
     setTimeout(() => toast.remove(), 250);
-  }, 3500);
+  }, 5500);
 }

@@ -1,27 +1,27 @@
 /* ==========================================================================
-   Adaptive Volatility AMM - Main Application Coordinator
+   Adaptive DEX - Application Coordinator (Live Sepolia Web3)
    ========================================================================== */
 
-import { state, subscribe, notify, syncWithSepolia } from './state.js';
-import { initSwapModule, showToast } from './swap.js';
-import { initLiquidityModule } from './liquidity.js';
-import { initMevModule } from './mev.js';
-import { initOracleModule } from './oracle.js';
-import { initAnalyticsModule } from './analytics.js';
-import { SEPOLIA_CONFIG } from './contracts.js';
+import { state, subscribe, notify, syncWithSepolia } from './state.js?v=5';
+import { initSwapModule, showToast } from './swap.js?v=5';
+import { initLiquidityModule } from './liquidity.js?v=5';
+import { initMevModule } from './mev.js?v=5';
+import { initOracleModule } from './oracle.js?v=5';
+import { initAnalyticsModule } from './analytics.js?v=5';
+import { SEPOLIA_CONFIG, getWeb3Signer, sendClaimFaucetTx } from './contracts.js?v=5';
 
 document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   initWalletButton();
-  initModeToggle();
+  initNavFaucetButton();
   initTelemetryUI();
 
   // Initialize UI modules
   initSwapModule();
   initLiquidityModule();
+  initAnalyticsModule();
   initMevModule();
   initOracleModule();
-  initAnalyticsModule();
 
   // Start live Sepolia on-chain synchronization
   startLiveOnChainSync();
@@ -68,7 +68,6 @@ function initWalletButton() {
               params: [{ chainId: SEPOLIA_CONFIG.chainIdHex }]
             });
           } catch (switchError) {
-            // Error 4902 means the chain has not been added to MetaMask
             if (switchError.code === 4902) {
               await window.ethereum.request({
                 method: 'wallet_addEthereumChain',
@@ -87,36 +86,27 @@ function initWalletButton() {
           state.wallet.address = userAddress;
           state.wallet.isMetaMask = true;
 
-          // Sync live balances immediately
           await syncWithSepolia();
 
           const shortAddr = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
-          walletBtn.textContent = `${shortAddr} (${state.tokens.ETH.balance} SEP)`;
+          walletBtn.textContent = `${shortAddr} (${state.wallet.nativeBalance} SEP)`;
           walletBtn.style.background = 'rgba(16, 185, 129, 0.15)';
           walletBtn.style.border = '1px solid var(--accent-green)';
           walletBtn.style.color = '#ffffff';
 
-          showToast(`MetaMask connected to Sepolia: ${shortAddr}`, 'success');
+          showToast(`MetaMask connected: ${shortAddr}`, 'success');
           notify();
           return;
         }
       } catch (err) {
-        console.warn('Wallet connection cancelled or failed', err);
+        console.warn('Wallet connection error:', err);
         walletBtn.textContent = 'Connect Wallet';
       }
+    } else {
+      showToast('MetaMask not detected. Please install MetaMask to trade on Sepolia.', 'warn');
     }
-
-    // Fallback: Simulated Testnet Wallet
-    state.wallet.connected = true;
-    state.wallet.address = '0x8C2C...E0DA';
-    walletBtn.textContent = '0x8C2C...E0DA (Sepolia)';
-    walletBtn.style.background = 'rgba(99, 102, 241, 0.2)';
-    walletBtn.style.border = '1px solid var(--primary)';
-    showToast('Connected Sepolia Deployer Wallet (0.026 ETH)', 'success');
-    notify();
   });
 
-  // Listen for account / chain changes in MetaMask
   if (window.ethereum) {
     window.ethereum.on('accountsChanged', (accounts) => {
       if (!accounts || accounts.length === 0) {
@@ -138,51 +128,43 @@ function initWalletButton() {
   }
 }
 
-function initModeToggle() {
-  const toggleBtn = document.getElementById('btn-mode-toggle');
-  if (!toggleBtn) return;
+function initNavFaucetButton() {
+  const faucetBtn = document.getElementById('btn-nav-faucet');
+  if (!faucetBtn) return;
 
-  toggleBtn.addEventListener('click', async () => {
-    state.settings.isSimulatedMode = !state.settings.isSimulatedMode;
-
-    if (state.settings.isSimulatedMode) {
-      state.settings.dataSource = 'Interactive Sandbox';
-      showToast('Switched to Interactive MEV Attack Sandbox Mode', 'info');
-    } else {
-      state.settings.dataSource = 'Sepolia Live RPC';
-      showToast('Switched to Live Sepolia On-Chain Telemetry', 'success');
-      await syncWithSepolia();
+  faucetBtn.addEventListener('click', async () => {
+    if (!state.wallet.connected) {
+      const connectBtn = document.getElementById('btn-wallet-connect');
+      if (connectBtn) connectBtn.click();
+      showToast('Connect your wallet first to claim test tokens', 'info');
+      return;
     }
-    notify();
+
+    try {
+      showToast('Confirm test token mint in MetaMask', 'info');
+      const signer = await getWeb3Signer();
+      if (!signer) throw new Error('No Web3 wallet signer available');
+
+      const tx = await sendClaimFaucetTx(signer, state.wallet.address, 'BOTH');
+      showToast('Minting 1,000 ETH and 1,000 USDC on Sepolia...', 'info', tx.hash);
+
+      await tx.wait(1);
+      showToast('Successfully minted 1,000 ETH & 1,000 USDC!', 'success', tx.hash);
+      await syncWithSepolia();
+    } catch (err) {
+      console.error('Faucet claim error:', err);
+      showToast(err.reason || err.message || 'Faucet mint rejected', 'error');
+    }
   });
 }
 
 function initTelemetryUI() {
-  // Subscribe to state changes to update the header telemetry indicators
   subscribe((s) => {
-    // 1. Navbar Network Pill & Block Pill
     const blockPill = document.getElementById('nav-block-pill');
     if (blockPill) {
       blockPill.textContent = `#${s.network.blockNumber.toLocaleString()}`;
     }
 
-    // 2. Mode Toggle Button Label
-    const modeBadgeIndicator = document.getElementById('mode-badge-indicator');
-    if (modeBadgeIndicator) {
-      if (s.settings.isSimulatedMode) {
-        modeBadgeIndicator.textContent = '🧪 Sandbox Mode';
-        modeBadgeIndicator.parentElement.style.background = 'rgba(245, 158, 11, 0.12)';
-        modeBadgeIndicator.parentElement.style.borderColor = 'rgba(245, 158, 11, 0.3)';
-        modeBadgeIndicator.parentElement.style.color = 'var(--accent-orange)';
-      } else {
-        modeBadgeIndicator.textContent = '🟢 Live Sepolia';
-        modeBadgeIndicator.parentElement.style.background = 'rgba(16, 185, 129, 0.12)';
-        modeBadgeIndicator.parentElement.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-        modeBadgeIndicator.parentElement.style.color = 'var(--accent-green)';
-      }
-    }
-
-    // 3. Telemetry Header Bar
     const telBlock = document.getElementById('telemetry-block-number');
     if (telBlock) {
       telBlock.textContent = `#${s.network.blockNumber.toLocaleString()}`;
@@ -193,25 +175,27 @@ function initTelemetryUI() {
       if (s.network.syncStatus === 'connected') {
         telSync.innerHTML = `<span style="color:var(--accent-green)">🟢 Connected (${s.network.rpcLatencyMs}ms)</span>`;
       } else if (s.network.syncStatus === 'syncing') {
-        telSync.innerHTML = `<span style="color:var(--accent-cyan)">🔄 Syncing...</span>`;
+        telSync.innerHTML = `<span style="color:var(--accent-blue)">🔄 Syncing...</span>`;
       } else {
         telSync.innerHTML = `<span style="color:var(--accent-orange)">🟡 Standby</span>`;
+      }
+    }
+
+    // Update wallet button if balance changed
+    if (s.wallet.connected && s.wallet.address) {
+      const walletBtn = document.getElementById('btn-wallet-connect');
+      if (walletBtn) {
+        const shortAddr = `${s.wallet.address.slice(0, 6)}...${s.wallet.address.slice(-4)}`;
+        walletBtn.textContent = `${shortAddr} (${s.wallet.nativeBalance} SEP)`;
       }
     }
   });
 }
 
-/**
- * Background loop: Polling Sepolia RPC every ~12 seconds
- */
 function startLiveOnChainSync() {
-  // Initial sync immediately
   syncWithSepolia();
-
-  // Periodic polling every 12 seconds (matching Sepolia block time)
+  // Poll Sepolia block and states every 12 seconds
   setInterval(() => {
-    if (!state.settings.isSimulatedMode) {
-      syncWithSepolia();
-    }
+    syncWithSepolia();
   }, 12000);
 }
