@@ -7,6 +7,21 @@
 
 ## ⚡ Executive Summary & Innovation
 
+## 📑 Live Proof of Concept (PoC) & On-Chain Dynamic Fee Verification
+
+> **Full Technical PoC Article (Medium Style):** [Proof of Concept: Menguji Mekanisme Dynamic Fee & Anti-MEV Hook Uniswap v4 Secara Live di Ethereum Sepolia](./docs/POC_DYNAMIC_FEE_ONCHAIN.md)
+
+### On-Chain Proof on Ethereum Sepolia:
+| Action | Transaction Hash | Block | Fee Applied | MEV Shield |
+| :--- | :--- | :--- | :--- | :--- |
+| **Pool Initialization** | [`0xbeb9...d516`](https://sepolia.etherscan.io/tx/0xbeb9024d1aa86be3dd85758426ed8f3fd44cea9a12574714e82544c40d36d516) | `11689332` | `DYNAMIC_FLAG` | Init |
+| **Seed Liquidity** | [`0xe6f4...7e11`](https://sepolia.etherscan.io/tx/0xe6f41e7df1fb18774c82ae8273ad760ecd9057518e1c1a0640e44098dacf7e11) | `11689332` | N/A | Seed 0.005 ETH |
+| **Swap 1 (ETH -> USDC)** | [`0x3b30...eec5`](https://sepolia.etherscan.io/tx/0x3b30bfe189f609644ec677ba1302190669cac8f3b7b134cf7112fa9bd313eec5) | `11689424` | **`1.00%`** (10000) | Normal (`mev=false`) |
+| **Swap 2 (USDC -> ETH)** | [`0x1c00...f193`](https://sepolia.etherscan.io/tx/0x1c008d1a77ac183203bc254681fb3c661473783787c33e89ad888f093650f193) | `11689424` | **`5.00%`** (50000) | **SPIKE TRIGGERED** (`mev=true`) |
+
+---
+
+
 Most dynamic-fee AMMs (e.g., Uniswap v4 reference `VolatilityBasedFeeHook`, Atrium Dynamic Fee) only adjust LP fees according to historical volatility. While this protects against macro volatility, it introduces a critical vulnerability: **predictable fee curves**. Bot operators exploit this predictability by front-running fee increases, back-running fee drops, and executing same-block sandwich attacks unchecked.
 
 ### The Innovation: Intra-Block MEV Dampening Layer
