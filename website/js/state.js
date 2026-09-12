@@ -56,7 +56,7 @@ export const state = {
     addressToken0: SEPOLIA_CONFIG.contracts.token0,
     addressToken1: SEPOLIA_CONFIG.contracts.token1,
     reserve0: 100.0,
-    reserve1: 100.0,
+    reserve1: 242000.0,
     
     lowFee: 500,
     mediumFee: 3000,
@@ -168,7 +168,7 @@ export function calculateSwapOutput(amountIn, tokenInSymbol) {
   const amountInWithFee = amountIn * (1 - feeRate);
   const amountOut = (amountInWithFee * rOut) / (rIn + amountInWithFee);
 
-  const currentMidPrice = isZeroForOne ? (rOut / rIn) : (rIn / rOut);
+  const currentMidPrice = rOut / rIn;
   const effectiveExecutionPrice = amountOut / amountIn;
   const priceImpact = Math.max(0, ((currentMidPrice - effectiveExecutionPrice) / currentMidPrice) * 100);
 

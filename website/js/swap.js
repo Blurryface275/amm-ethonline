@@ -309,12 +309,24 @@ function updateCalculations() {
   }
 
   const result = calculateSwapOutput(amountIn, currentTokenIn);
-  if (amountOutEl) amountOutEl.value = result.amountOut.toFixed(4);
+  if (amountOutEl) {
+    if (result.amountOut < 0.001 && result.amountOut > 0) {
+      amountOutEl.value = result.amountOut.toFixed(6);
+    } else {
+      amountOutEl.value = result.amountOut.toFixed(4);
+    }
+  }
 
   if (inUsdEl) inUsdEl.textContent = `~$${(amountIn * tokenIn.priceUSD).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   if (outUsdEl) outUsdEl.textContent = `~$${(result.amountOut * tokenOut.priceUSD).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  if (rateEl) rateEl.textContent = `1 ${tokenIn.symbol} ≈ ${result.rate.toFixed(4)} ${tokenOut.symbol}`;
+  if (rateEl) {
+    if (result.rate < 0.01 && result.rate > 0) {
+      rateEl.textContent = `1 ${tokenIn.symbol} ≈ ${result.rate.toFixed(6)} ${tokenOut.symbol}`;
+    } else {
+      rateEl.textContent = `1 ${tokenIn.symbol} ≈ ${result.rate.toFixed(4)} ${tokenOut.symbol}`;
+    }
+  }
   if (feeEl) feeEl.textContent = `${result.appliedFeePercent}%`;
   
   if (impactEl) {
@@ -323,7 +335,13 @@ function updateCalculations() {
   }
 
   const minAmountOut = result.amountOut * (1 - (state.settings.slippageBps / 10000));
-  if (minOutEl) minOutEl.textContent = `${minAmountOut.toFixed(4)} ${tokenOut.symbol}`;
+  if (minOutEl) {
+    if (minAmountOut < 0.001 && minAmountOut > 0) {
+      minOutEl.textContent = `${minAmountOut.toFixed(6)} ${tokenOut.symbol}`;
+    } else {
+      minOutEl.textContent = `${minAmountOut.toFixed(4)} ${tokenOut.symbol}`;
+    }
+  }
 }
 
 async function checkCurrentAllowance() {
