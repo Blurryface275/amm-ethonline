@@ -10,6 +10,7 @@
 ## 📑 Live Proof of Concept (PoC) & On-Chain Dynamic Fee Verification
 
 > **Full Technical PoC Article (Medium Style):** [Proof of Concept: Menguji Mekanisme Dynamic Fee & Anti-MEV Hook Uniswap v4 Secara Live di Ethereum Sepolia](./docs/POC_DYNAMIC_FEE_ONCHAIN.md)
+> **Smart Contract Audit & Proof of Code Report:** [Laporan Teknis & Audit Smart Contract: Proof of Code Adaptive Volatility AMM](./docs/PROOF_OF_CODE_AUDIT.md)
 
 ### On-Chain Proof on Ethereum Sepolia:
 | Action | Transaction Hash | Block | Fee Applied | MEV Shield |
