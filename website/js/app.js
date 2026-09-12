@@ -183,15 +183,15 @@ function initNavFaucetButton() {
       const signer = await getWeb3Signer();
       if (!signer) throw new Error('No Web3 wallet signer available');
 
-      const tx = await sendClaimFaucetTx(signer, state.wallet.address, 'BOTH');
-      showToast('Minting 1,000 ETH and 1,000 USDC on Sepolia...', 'info', tx.hash);
+      const tx = await sendClaimFaucetTx(signer, state.wallet.address, 'USDC');
+      showToast('Minting 1,000 USDC on Sepolia...', 'info', tx.hash);
 
       await tx.wait(1);
       isNavClaiming = false;
       faucetBtn.disabled = false;
       faucetBtn.innerHTML = '<span>🚰 Faucet</span>';
 
-      showToast('Successfully minted 1,000 ETH & 1,000 USDC!', 'success', tx.hash);
+      showToast('Successfully minted 1,000 USDC!', 'success', tx.hash);
       await syncWithSepolia();
       notify();
     } catch (err) {

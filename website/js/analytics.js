@@ -88,7 +88,7 @@ function renderAnalyticsView(container) {
                 <td style="color:var(--accent-green);font-weight:600">24.5%</td>
                 <td>
                   <a href="https://sepolia.etherscan.io/address/${SEPOLIA_CONFIG.contracts.poolManager}" target="_blank" class="table-link" title="Canonical PoolManager">
-                    0xfa00...4ccf ↗
+                    0xbcbe...2bab ↗
                   </a>
                 </td>
               </tr>

@@ -30,21 +30,23 @@ export const state = {
   tokens: {
     ETH: {
       symbol: 'ETH',
-      name: 'Ethereum (v4-Test)',
+      name: 'Sepolia Ether',
       address: SEPOLIA_CONFIG.contracts.token0,
       decimals: 18,
       balance: 0.00,
       priceUSD: 2420.00,
-      icon: '🔷'
+      icon: '🔷',
+      isNative: true
     },
     USDC: {
       symbol: 'USDC',
-      name: 'USD Coin (v4-Test)',
+      name: 'USD Coin',
       address: SEPOLIA_CONFIG.contracts.token1,
       decimals: 18,
       balance: 0.00,
       priceUSD: 1.00,
-      icon: '💵'
+      icon: '💵',
+      isNative: false
     }
   },
 
@@ -53,8 +55,8 @@ export const state = {
     token1: 'USDC',
     addressToken0: SEPOLIA_CONFIG.contracts.token0,
     addressToken1: SEPOLIA_CONFIG.contracts.token1,
-    reserve0: 1000.0,
-    reserve1: 1000.0,
+    reserve0: 100.0,
+    reserve1: 100.0,
     
     lowFee: 500,
     mediumFee: 3000,
@@ -84,16 +86,7 @@ export const state = {
     deadlineMinutes: 20
   },
 
-  recentTransactions: [
-    {
-      hash: '0x179a10cf1f73bc527878d39a58fa4d169bd0bb16b61152e407f3b9dbbe8abd16',
-      type: 'Add Liquidity',
-      details: '1,000 ETH + 1,000 USDC Seeded',
-      timestamp: Date.now() - 60000,
-      status: 'confirmed'
-    }
-  ],
-
+  recentTransactions: [],
   listeners: []
 };
 
@@ -253,7 +246,7 @@ export async function syncWithSepolia() {
       const balances = await fetchLiveAccountBalances(state.wallet.address);
       if (balances) {
         state.wallet.nativeBalance = balances.ethBalance;
-        state.tokens.ETH.balance = balances.token0Balance;
+        state.tokens.ETH.balance = balances.ethBalance;
         state.tokens.USDC.balance = balances.token1Balance;
       }
     }

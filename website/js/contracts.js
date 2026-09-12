@@ -19,9 +19,9 @@ export const SEPOLIA_CONFIG = {
     poolManager: '0xE03A1074c86CFeDd5C142C4F04F1a1536e203543',
     adaptiveFeeHook: '0xab4c103d0b4783d736e12ea01a98945f08122080',
     volatilityConsumer: '0xbB833c9853587f5C562B407D2D95B0f0509AB733',
-    token0: '0xc8973F90161307791ce6e18210E25cB00e5079a0',
-    token1: '0xCb5C55727ABc3067BC7E26b66ad0f5140Af0e64a',
-    poolId: '0xfa002164aa10ade9439fd684b53822f04455c76dd80261f3c031766b00a44ccf',
+    token0: '0x0000000000000000000000000000000000000000', // Native Sepolia ETH
+    token1: '0xCb5C55727ABc3067BC7E26b66ad0f5140Af0e64a', // USDC Mock (18 dec)
+    poolId: '0xbcbe7126c965bfb0e5220eaeb1c4ff402c37ae1f7bb654ff4bcf4a5632542bab',
     poolSwapTest: '0x9B6b46e2c869aa39918Db7f52f5557FE577B6eEe',
     modifyLiquidityRouter: '0x0C478023803a644c94c4CE1C1e7b9A087e411B0A',
     tickSpacing: 60,
@@ -226,7 +226,7 @@ export async function fetchLiveAccountBalances(accountAddress) {
 
   let ethBalance = 0;
 
-  // 1. Instant direct read via MetaMask if available
+  // 1. Query Native Sepolia ETH balance
   if (typeof window.ethereum !== 'undefined' && typeof window.ethers !== 'undefined') {
     try {
       const hex = await window.ethereum.request({
@@ -239,7 +239,6 @@ export async function fetchLiveAccountBalances(accountAddress) {
     } catch (_) {}
   }
 
-  // 2. RPC fallback if ethBalance not yet read
   const provider = getRpcProvider();
   if (ethBalance === 0 && provider && typeof window.ethers !== 'undefined') {
     try {
@@ -248,10 +247,8 @@ export async function fetchLiveAccountBalances(accountAddress) {
     } catch (_) {}
   }
 
-  // 3. Query ERC20 Mock balances (Token0 ETH, Token1 USDC)
-  let token0Balance = 0;
+  // 2. Query USDC token balance
   let token1Balance = 0;
-
   try {
     let ercProvider = null;
     if (typeof window.ethereum !== 'undefined' && typeof window.ethers !== 'undefined') {
@@ -261,28 +258,27 @@ export async function fetchLiveAccountBalances(accountAddress) {
     }
 
     if (ercProvider && typeof window.ethers !== 'undefined') {
-      const t0 = new window.ethers.Contract(SEPOLIA_CONFIG.contracts.token0, ERC20_ABI, ercProvider);
       const t1 = new window.ethers.Contract(SEPOLIA_CONFIG.contracts.token1, ERC20_ABI, ercProvider);
-      const [b0, b1] = await Promise.all([
-        t0.balanceOf(accountAddress).catch(() => 0n),
-        t1.balanceOf(accountAddress).catch(() => 0n)
-      ]);
-      token0Balance = parseFloat(window.ethers.formatEther(b0));
+      const b1 = await t1.balanceOf(accountAddress).catch(() => 0n);
       token1Balance = parseFloat(window.ethers.formatEther(b1));
     }
   } catch (err) {
-    console.warn('ERC20 balance check error:', err);
+    console.warn('USDC balance check error:', err);
   }
 
   return {
     ethBalance: Number(ethBalance.toFixed(4)),
-    token0Balance: Number(token0Balance.toFixed(4)),
+    token0Balance: Number(ethBalance.toFixed(4)), // Token0 IS native Sepolia ETH
     token1Balance: Number(token1Balance.toFixed(4))
   };
 }
 
 export async function checkTokenAllowance(accountAddress, tokenAddress, spenderAddress) {
   if (!accountAddress) return 0n;
+  // Native ETH requires no ERC20 approval
+  if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+    return window.ethers ? window.ethers.MaxUint256 : 115792089237316195423570985008687907853269984665640564039457584007913129639935n;
+  }
   try {
     let provider = null;
     if (typeof window.ethereum !== 'undefined' && typeof window.ethers !== 'undefined') {
@@ -332,42 +328,15 @@ export async function sendSwapTx(signer, zeroForOne, amountInWei) {
     false
   ];
 
-  const tx = await poolSwapContract.swap(poolKey, swapParams, testSettings, '0x');
+  // If paying Native Sepolia ETH (zeroForOne), attach msg.value!
+  const overrides = zeroForOne ? { value: BigInt(amountInWei) } : {};
+
+  const tx = await poolSwapContract.swap(poolKey, swapParams, testSettings, '0x', overrides);
   return tx;
 }
 
-export async function sendClaimFaucetTx(signer, recipientAddress, tokenChoice = 'BOTH') {
+export async function sendClaimFaucetTx(signer, recipientAddress, tokenChoice = 'USDC') {
   const amount = window.ethers.parseEther('1000');
-  const t0 = new window.ethers.Contract(SEPOLIA_CONFIG.contracts.token0, ERC20_ABI, signer);
   const t1 = new window.ethers.Contract(SEPOLIA_CONFIG.contracts.token1, ERC20_ABI, signer);
-
-  if (tokenChoice === 'TOKEN0' || tokenChoice === 'ETH') {
-    return await t0.mint(recipientAddress, amount);
-  } else if (tokenChoice === 'TOKEN1' || tokenChoice === 'USDC') {
-    return await t1.mint(recipientAddress, amount);
-  } else {
-    // Check existing balances first to avoid unnecessary redundant mints
-    let b0 = 0n;
-    let b1 = 0n;
-    try {
-      [b0, b1] = await Promise.all([
-        t0.balanceOf(recipientAddress).catch(() => 0n),
-        t1.balanceOf(recipientAddress).catch(() => 0n)
-      ]);
-    } catch (_) {}
-
-    if (b0 === 0n && b1 === 0n) {
-      const tx0 = await t0.mint(recipientAddress, amount);
-      await tx0.wait(1);
-      const tx1 = await t1.mint(recipientAddress, amount);
-      return tx1;
-    } else if (b0 === 0n) {
-      return await t0.mint(recipientAddress, amount);
-    } else if (b1 === 0n) {
-      return await t1.mint(recipientAddress, amount);
-    } else {
-      // Both already minted, top up Token0
-      return await t0.mint(recipientAddress, amount);
-    }
-  }
+  return await t1.mint(recipientAddress, amount);
 }

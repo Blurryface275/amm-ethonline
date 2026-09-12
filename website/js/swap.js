@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Adaptive Volatility AMM - Production DEX Swap Module (On-Chain Sepolia)
+   Adaptive Volatility AMM - Production DEX Swap Module (Native Sepolia ETH)
    ========================================================================== */
 
 import {
@@ -156,7 +156,7 @@ function renderSwapUI() {
           </div>
           <div class="info-row">
             <span>Routing</span>
-            <span class="info-val" style="color:var(--accent-blue)">Uniswap v4 (Sepolia)</span>
+            <span class="info-val" style="color:var(--accent-blue)">Uniswap v4 Native (Sepolia)</span>
           </div>
         </div>
 
@@ -167,9 +167,9 @@ function renderSwapUI() {
 
         <!-- Testnet Faucet Quick Callout -->
         <div class="faucet-quickbar">
-          <span>Sepolia v4 Test Tokens:</span>
+          <span>Need test USDC to trade?</span>
           <button class="faucet-link-btn" id="btn-quick-faucet">
-            <span>🚰 Claim 1,000 ETH & USDC</span>
+            <span>🚰 Claim 1,000 USDC</span>
           </button>
         </div>
       </div>
@@ -203,12 +203,15 @@ function bindEvents() {
   maxBtn.addEventListener('click', () => {
     const bal = state.tokens[currentTokenIn].balance;
     if (bal > 0) {
-      amountInput.value = (bal * 0.999).toFixed(4);
-    } else if (state.wallet.connected) {
-      amountInput.value = '10.0';
-      showToast('Populated 10 tokens. Claim test tokens below if needed!', 'info');
+      if (currentTokenIn === 'ETH') {
+        // Reserve 0.005 ETH for gas
+        const safeBal = Math.max(0, bal - 0.005);
+        amountInput.value = safeBal > 0 ? safeBal.toFixed(4) : bal.toFixed(4);
+      } else {
+        amountInput.value = bal.toFixed(4);
+      }
     } else {
-      amountInput.value = '1.0';
+      amountInput.value = '0.01';
     }
     updateCalculations();
     checkCurrentAllowance();
@@ -262,21 +265,13 @@ function updateSwapView() {
   if (inSym) inSym.textContent = tokenIn.symbol;
   if (inIcon) inIcon.textContent = tokenIn.icon;
   if (inBal && inLabel) {
-    if (currentTokenIn === 'ETH' && state.wallet.connected && state.wallet.nativeBalance > 0) {
-      inLabel.innerHTML = `Balance: <strong id="token-in-bal">${tokenIn.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong> <span style="font-size:11px;font-weight:normal;color:var(--text-muted);margin-left:4px">(${state.wallet.nativeBalance} Sepolia ETH)</span>`;
-    } else {
-      inLabel.innerHTML = `Balance: <strong id="token-in-bal">${tokenIn.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong>`;
-    }
+    inLabel.innerHTML = `Balance: <strong id="token-in-bal">${tokenIn.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong> ${tokenIn.symbol}`;
   }
 
   if (outSym) outSym.textContent = tokenOut.symbol;
   if (outIcon) outIcon.textContent = tokenOut.icon;
   if (outBal && outLabel) {
-    if (currentTokenOut === 'ETH' && state.wallet.connected && state.wallet.nativeBalance > 0) {
-      outLabel.innerHTML = `Balance: <strong id="token-out-bal">${tokenOut.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong> <span style="font-size:11px;font-weight:normal;color:var(--text-muted);margin-left:4px">(${state.wallet.nativeBalance} Sepolia ETH)</span>`;
-    } else {
-      outLabel.innerHTML = `Balance: <strong id="token-out-bal">${tokenOut.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong>`;
-    }
+    outLabel.innerHTML = `Balance: <strong id="token-out-bal">${tokenOut.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}</strong> ${tokenOut.symbol}`;
   }
 
   const feeData = getActiveFee();
@@ -346,7 +341,7 @@ async function checkCurrentAllowance() {
     return;
   }
   if (isClaiming) {
-    updateButtonLabel('Minting Test Tokens...', true);
+    updateButtonLabel('Minting USDC...', true);
     return;
   }
 
@@ -357,14 +352,18 @@ async function checkCurrentAllowance() {
   }
 
   if (state.tokens[currentTokenIn].balance < amountIn) {
-    if (state.tokens[currentTokenIn].balance === 0) {
-      updateButtonLabel('🚰 Claim 1,000 Test Tokens to Swap');
-    } else {
-      updateButtonLabel(`Insufficient ${currentTokenIn} balance`);
-    }
+    updateButtonLabel(`Insufficient ${currentTokenIn} balance`);
     return;
   }
 
+  // Native ETH does not need approval
+  if (currentTokenIn === 'ETH') {
+    hasAllowance = true;
+    updateButtonLabel(`Swap ETH for USDC`);
+    return;
+  }
+
+  // USDC requires approval
   const tokenInAddress = state.tokens[currentTokenIn].address;
   const spender = SEPOLIA_CONFIG.contracts.poolSwapTest;
 
@@ -375,13 +374,13 @@ async function checkCurrentAllowance() {
     hasAllowance = allowance >= amountInWei;
 
     if (!hasAllowance) {
-      updateButtonLabel(`Approve ${currentTokenIn}`);
+      updateButtonLabel(`Approve USDC`);
     } else {
-      updateButtonLabel('Swap');
+      updateButtonLabel(`Swap USDC for ETH`);
     }
   } catch (err) {
     console.warn('Allowance check error:', err);
-    updateButtonLabel('Swap');
+    updateButtonLabel(`Swap`);
   }
 }
 
@@ -401,11 +400,6 @@ async function handleMainButtonClick() {
 
   const amountIn = parseFloat(document.getElementById('input-amount-in')?.value) || 0;
 
-  if (state.tokens[currentTokenIn].balance < amountIn && state.tokens[currentTokenIn].balance === 0) {
-    await handleQuickFaucet();
-    return;
-  }
-
   if (amountIn <= 0) {
     showToast('Enter an amount to swap', 'warn');
     return;
@@ -416,7 +410,7 @@ async function handleMainButtonClick() {
     return;
   }
 
-  if (!hasAllowance) {
+  if (!hasAllowance && currentTokenIn !== 'ETH') {
     await handleTokenApproval();
     return;
   }
@@ -498,18 +492,18 @@ async function handleQuickFaucet() {
 
   try {
     isClaiming = true;
-    updateButtonLabel('Minting Test Tokens...', true);
+    updateButtonLabel('Minting USDC...', true);
     showToast('Please confirm token mint in MetaMask', 'info');
 
     const signer = await getWeb3Signer();
     if (!signer) throw new Error('No Web3 wallet signer available');
 
-    const tx = await sendClaimFaucetTx(signer, state.wallet.address, 'BOTH');
-    showToast('Minting 1,000 ETH & 1,000 USDC on Sepolia...', 'info', tx.hash);
+    const tx = await sendClaimFaucetTx(signer, state.wallet.address, 'USDC');
+    showToast('Minting 1,000 USDC on Sepolia...', 'info', tx.hash);
 
     await tx.wait(1);
     isClaiming = false;
-    showToast('Successfully minted 1,000 ETH & 1,000 USDC!', 'success', tx.hash);
+    showToast('Successfully minted 1,000 USDC!', 'success', tx.hash);
     await syncWithSepolia();
     checkCurrentAllowance();
   } catch (err) {
@@ -517,7 +511,7 @@ async function handleQuickFaucet() {
     console.error('Faucet claim error:', err);
     const msg = err.reason || err.shortMessage || err.message || '';
     if (msg.includes('in-flight transaction limit') || msg.includes('delegated accounts')) {
-      showToast('Transaction is already pending or confirmed on Sepolia. Syncing balance...', 'info');
+      showToast('Transaction is already pending on Sepolia. Syncing balance...', 'info');
       await syncWithSepolia();
     } else {
       showToast(msg || 'Faucet mint cancelled or rejected', 'warn');
