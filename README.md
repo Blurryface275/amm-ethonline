@@ -140,8 +140,9 @@ The smart contracts are backed by a comprehensive Foundry test suite with **32/3
 ├── website/
 │   └── index.html                      # Interactive frontend demo & live contract simulator
 ├── foundry.toml                        # Foundry build configuration
-├── tasks.md                            # Hackathon execution milestones
-└── CLAUDE.md                           # Architecture and development guide
+└── docs/                               # Technical architecture & on-chain PoC reports
+    ├── POC_DYNAMIC_FEE_ONCHAIN.md      # Live Sepolia dynamic fee verification
+    └── PROOF_OF_CODE_AUDIT.md          # Smart contract security audit report
 ```
 
 ---

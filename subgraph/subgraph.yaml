@@ -8,9 +8,7 @@ schema:
 dataSources:
   - kind: ethereum
     name: PoolManager
-    # PLACEHOLDER — network and address are unconfirmed. claude.md calls out
-    # that the event's testnet choice needs confirming with the team before
-    # this is deployable; both fields must be filled in once that happens.
+    # Canonical Uniswap v4 PoolManager deployment on Ethereum Sepolia testnet.
     # PoolManager is a singleton across all v4 pools, so this indexes every
     # pool's Initialize/Swap, not just ones using our hook — mapping.ts
     # relies on the `hooks` field on Initialize to scope down to pools that

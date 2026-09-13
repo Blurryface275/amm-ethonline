@@ -22,3 +22,9 @@ assets/
 *.log
 
 broadcast/**/run-[0-9]*.json
+
+# Local recording and scratch files
+VIDEO_DEMO_SCRIPT.md
+docs/VIDEO_DEMO_SCRIPT.md
+scratch/
+*.m4a

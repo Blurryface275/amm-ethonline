@@ -9,9 +9,7 @@ run by the Chainlink Functions DON, not this subgraph's.
 ## Two placeholders that must be filled in before this deploys
 
 1. **`subgraph.yaml`**: `network` and `source.address` are placeholders
-   (`sepolia` / the zero address). claude.md flags the testnet choice as
-   something to confirm with the event organizers before writing deploy
-   scripts — `network` should become whichever testnet that is, and
+   (`sepolia` / the zero address). The testnet choice is confirmed for Ethereum Sepolia — `network` should become whichever testnet that is, and
    `source.address` the actual `PoolManager` address on it.
 2. **`src/mapping.ts`**: `HOOK_ADDRESS` is the zero address. `PoolManager` is
    a singleton shared by every v4 pool on the network, not just this
