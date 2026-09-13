@@ -265,43 +265,43 @@ Berikut adalah rekaman visual menyeluruh yang mendokumentasikan setiap tahapan e
 
 ### 1. Antarmuka Awal Swap DEX (Native ETH $\rightarrow$ USDC)
 Tampilan interface siap pakai dengan koneksi jaringan Ethereum Sepolia, saldo native ETH terbaca secara akurat, dan pool terkalibrasi.
-![01_swap_interface_initial](./images/01_swap_interface_initial.png)
+![01_swap_interface_initial](https://raw.githubusercontent.com/Blurryface275/amm-ethonline/main/docs/images/01_swap_interface_initial.png)
 
 ---
 
 ### 2. Input Jumlah Swap & Kalkulasi Dynamic Rate
 Pengguna memasukkan `0.0001 ETH`. DEX secara real-time membaca Mid-Price ($1 \text{ ETH} \approx 2,298.99 \text{ USDC}$), estimasi output, dan status proteksi MEV.
-![02_swap_with_amount](./images/02_swap_with_amount.png)
+![02_swap_with_amount](https://raw.githubusercontent.com/Blurryface275/amm-ethonline/main/docs/images/02_swap_with_amount.png)
 
 ---
 
 ### 3. Konfirmasi On-Chain Transaksi Swap 1 di Sepolia Etherscan
 Bukti transaksi `0x3b30bfe189f609644ec677ba1302190669cac8f3b7b134cf7112fa9bd313eec5` berstatus `Success`, berinteraksi dengan `PoolSwapTest` dan memicu hook Uniswap v4.
-![03_tx1_overview](./images/03_tx1_overview.png)
+![03_tx1_overview](https://raw.githubusercontent.com/Blurryface275/amm-ethonline/main/docs/images/03_tx1_overview.png)
 
 ---
 
 ### 4. Event Logs Transaksi Swap 1 (`FeeApplied` = 1.00%)
 Tangkapan layar Etherscan Event Logs membuktikan emit event dari `AdaptiveFeeHook` (`0xab4c...2080`) dengan `appliedFee = 10000` (1.00%) dan `mevTriggered = false`.
-![04_tx1_fee_applied](./images/04_tx1_fee_applied.png)
+![04_tx1_fee_applied](https://raw.githubusercontent.com/Blurryface275/amm-ethonline/main/docs/images/04_tx1_fee_applied.png)
 
 ---
 
 ### 5. Event Logs Transaksi Swap 2 (`FeeApplied` = 5.00% MEV Spike!)
 Bukti puncak kedinamisan biaya: Tangkapan layar Etherscan Event Logs untuk transaksi `0x1c008d1a77ac183203bc254681fb3c661473783787c33e89ad888f093650f193` yang membuktikan `appliedFee = 50000` (5.00%) dan `mevTriggered = true`.
-![05_tx2_mev_spike_fee](./images/05_tx2_mev_spike_fee.png)
+![05_tx2_mev_spike_fee](https://raw.githubusercontent.com/Blurryface275/amm-ethonline/main/docs/images/05_tx2_mev_spike_fee.png)
 
 ---
 
 ### 6. Protocol Explorer & Live Metrics Dashboard
 Monitoring status protokol secara menyeluruh: TVL, volume perdagangan 24 jam, status sensor MEV Shield, dan daftar pool aktif di Uniswap v4.
-![06_analytics_explore](./images/06_analytics_explore.png)
+![06_analytics_explore](https://raw.githubusercontent.com/Blurryface275/amm-ethonline/main/docs/images/06_analytics_explore.png)
 
 ---
 
 ### 7. Manajemen Posisi Likuiditas & Yield LP
 Tampilan posisi Liquidity Provider dengan estimasi dynamic APY (24.5%), volatility fee boost (+6.2%), dan hook fee tier badge.
-![07_analytics_pools](./images/07_analytics_pools.png)
+![07_analytics_pools](https://raw.githubusercontent.com/Blurryface275/amm-ethonline/main/docs/images/07_analytics_pools.png)
 
 ---
 
@@ -347,6 +347,6 @@ Proof of Concept ini secara tuntas membuktikan bahwa:
 - Mekanisme perlindungan volatilitas dan anti-MEV terbukti aktif, terverifikasi, dan dapat dipantau oleh siapa saja di blockchain Ethereum Sepolia.
 
 Seluruh kode sumber kontrak pintar, script deployment Foundry, antarmuka front-end, dan artefak verifikasi tersedia di repositori resmi:
-- **GitHub Repository:** [amm-ethonline (GitHub)](https://github.com/blurryface/amm-ethonline)
+- **GitHub Repository:** [amm-ethonline (GitHub)](https://github.com/Blurryface275/amm-ethonline)
 - **Sepolia Hook Contract:** [`0xab4c103d0b4783d736e12ea01a98945f08122080`](https://sepolia.etherscan.io/address/0xab4c103d0b4783d736e12ea01a98945f08122080)
 - **Sepolia Pool Manager:** [`0xE03A1074c86CFeDd5C142C4F04F1a1536e203543`](https://sepolia.etherscan.io/address/0xE03A1074c86CFeDd5C142C4F04F1a1536e203543)

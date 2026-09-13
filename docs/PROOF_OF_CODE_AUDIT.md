@@ -105,7 +105,7 @@ function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory e
 
 ### C. Tampilan Visual Telemetri Oracle & Kontrak
 Tangkapan layar antarmuka *Contracts & Oracle Dashboard* yang memvalidasi koneksi DON dan integrasi kontrak di Sepolia:
-![09_contracts_oracle_telemetry](./images/09_contracts_oracle_telemetry.png)
+![09_contracts_oracle_telemetry](https://raw.githubusercontent.com/Blurryface275/amm-ethonline/main/docs/images/09_contracts_oracle_telemetry.png)
 
 ---
 
@@ -213,7 +213,7 @@ Hasil pengujian invariant `AdaptiveFeeHookInvariants.t.sol`:
 
 ### C. Tampilan Visual Simulasi MEV Shield Lab
 Tangkapan layar modul *MEV Shield Sandbox* yang mensimulasikan kegagalan bot sandwich akibat pinalti fee 5.00%:
-![08_mev_shield_lab](./images/08_mev_shield_lab.png)
+![08_mev_shield_lab](https://raw.githubusercontent.com/Blurryface275/amm-ethonline/main/docs/images/08_mev_shield_lab.png)
 
 ---
 
@@ -287,7 +287,7 @@ swapRouter.swap{value: 0.1 ether}(
 
 ### D. Tampilan Visual Antarmuka Swap DEX
 Tangkapan layar antarmuka swap dengan kalkulasi real-time mid-price dan proteksi dinamis:
-![02_swap_with_amount](./images/02_swap_with_amount.png)
+![02_swap_with_amount](https://raw.githubusercontent.com/Blurryface275/amm-ethonline/main/docs/images/02_swap_with_amount.png)
 
 ---
 
