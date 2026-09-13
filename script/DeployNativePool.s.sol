@@ -55,10 +55,7 @@ contract DeployNativePoolScript is Script {
         IPoolModifyLiquidityTest(MODIFY_LIQUIDITY_ROUTER).modifyLiquidity{value: ethLiq}(
             key,
             IPoolManager.ModifyLiquidityParams({
-                tickLower: tickLower,
-                tickUpper: tickUpper,
-                liquidityDelta: int256(ethLiq),
-                salt: 0
+                tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: int256(ethLiq), salt: 0
             }),
             ""
         );

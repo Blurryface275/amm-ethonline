@@ -6,7 +6,7 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
@@ -55,16 +55,17 @@ contract ExecuteSepoliaSwapScript is Script {
         // 3. Swap USDC -> Native ETH (zeroForOne = false)
         uint256 usdcSwapAmount = 0.05 ether; // 0.05 USDC units (18 decimals)
         console2.log("Executing Swap 2: 0.05 USDC -> Native ETH...");
-        BalanceDelta delta2 = PoolSwapTest(POOL_SWAP_TEST).swap(
-            key,
-            IPoolManager.SwapParams({
-                zeroForOne: false,
-                amountSpecified: -int256(usdcSwapAmount),
-                sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE - 1
-            }),
-            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
-            ""
-        );
+        BalanceDelta delta2 = PoolSwapTest(POOL_SWAP_TEST)
+            .swap(
+                key,
+                IPoolManager.SwapParams({
+                    zeroForOne: false,
+                    amountSpecified: -int256(usdcSwapAmount),
+                    sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE - 1
+                }),
+                PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+                ""
+            );
 
         console2.log("Swap 2 successful!");
         console2.log("Amount0 (ETH received):", delta2.amount0());

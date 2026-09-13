@@ -8,7 +8,6 @@ import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
-import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {HookMiner} from "@uniswap/hooks-utils/src/HookMiner.sol";
@@ -23,7 +22,6 @@ contract NativeEthPoolTest is Deployers {
     MockERC20 usdc;
     PoolKey nativePoolKey;
     PoolId nativePoolId;
-
 
     function setUp() public {
         deployFreshManagerAndRouters();
@@ -46,21 +44,9 @@ contract NativeEthPoolTest is Deployers {
             uint256(100),
             uint24(50000)
         );
-        (address hookAddress, bytes32 salt) =
-            HookMiner.find(address(this), flags, type(AdaptiveFeeHook).creationCode, constructorArgs);
+        (, bytes32 salt) = HookMiner.find(address(this), flags, type(AdaptiveFeeHook).creationCode, constructorArgs);
 
-        hook = new AdaptiveFeeHook{salt: salt}(
-            manager,
-            address(this),
-            500,
-            3000,
-            10000,
-            100,
-            500,
-            1 hours,
-            100,
-            50000
-        );
+        hook = new AdaptiveFeeHook{salt: salt}(manager, address(this), 500, 3000, 10000, 100, 500, 1 hours, 100, 50000);
 
         nativePoolKey = PoolKey({
             currency0: CurrencyLibrary.ADDRESS_ZERO,
@@ -100,9 +86,7 @@ contract NativeEthPoolTest is Deployers {
         swapRouter.swap{value: 0.1 ether}(
             nativePoolKey,
             IPoolManager.SwapParams({
-                zeroForOne: true,
-                amountSpecified: -0.1 ether,
-                sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+                zeroForOne: true, amountSpecified: -0.1 ether, sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
@@ -131,9 +115,7 @@ contract NativeEthPoolTest is Deployers {
         swapRouter.swap(
             nativePoolKey,
             IPoolManager.SwapParams({
-                zeroForOne: false,
-                amountSpecified: -10 ether,
-                sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE - 1
+                zeroForOne: false, amountSpecified: -10 ether, sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE - 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""

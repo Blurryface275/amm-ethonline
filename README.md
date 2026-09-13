@@ -9,8 +9,6 @@
 
 ## 📑 Live Proof of Concept (PoC) & On-Chain Dynamic Fee Verification
 
-> **Full Technical PoC Article (Medium Style):** [Proof of Concept: Menguji Mekanisme Dynamic Fee & Anti-MEV Hook Uniswap v4 Secara Live di Ethereum Sepolia](./docs/POC_DYNAMIC_FEE_ONCHAIN.md)
-> **Smart Contract Audit & Proof of Code Report:** [Laporan Teknis & Audit Smart Contract: Proof of Code Adaptive Volatility AMM](./docs/PROOF_OF_CODE_AUDIT.md)
 
 ### On-Chain Proof on Ethereum Sepolia:
 | Action | Transaction Hash | Block | Fee Applied | MEV Shield |
@@ -102,7 +100,7 @@ All core protocol contracts are deployed and **verified on Sepolia Etherscan**, 
 
 ## 🧪 Mathematical Invariants & Verification
 
-The smart contracts are backed by a comprehensive Foundry test suite with **32/32 passing tests**:
+The smart contracts are backed by a comprehensive Foundry test suite with **34/34 passing tests**:
 
 1. **Fee Output Monotonicity Invariant:**
    Verified across identical $1.0\text{ ETH}$ swaps:
@@ -140,9 +138,7 @@ The smart contracts are backed by a comprehensive Foundry test suite with **32/3
 ├── website/
 │   └── index.html                      # Interactive frontend demo & live contract simulator
 ├── foundry.toml                        # Foundry build configuration
-└── docs/                               # Technical architecture & on-chain PoC reports
-    ├── POC_DYNAMIC_FEE_ONCHAIN.md      # Live Sepolia dynamic fee verification
-    └── PROOF_OF_CODE_AUDIT.md          # Smart contract security audit report
+└── docs/                               # System documentation and architecture assets
 ```
 
 ---
@@ -166,7 +162,7 @@ forge install
 # Build smart contracts
 forge build
 
-# Run complete test suite (32 tests)
+# Run complete test suite (34 tests)
 forge test -vvv
 
 # Run invariant and gas benchmark tests specifically

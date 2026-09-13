@@ -8,6 +8,10 @@ out/
 /broadcast/**/dry-run/
 
 # Docs
+POC_DYNAMIC_FEE_ONCHAIN.md
+PROOF_OF_CODE_AUDIT.md
+docs/POC_DYNAMIC_FEE_ONCHAIN.md
+docs/PROOF_OF_CODE_AUDIT.md
 
 # Dotenv file
 .env
